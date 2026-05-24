@@ -1,16 +1,68 @@
-# React + Vite
+# VTube Frontend 🎥
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Welcome to the frontend repository of **VTube**, a modern and dynamic video-sharing application! This project serves as the user interface for the VTube platform, allowing users to watch, upload, like, and comment on videos, as well as manage their channels and subscriptions.
 
-Currently, two official plugins are available:
+## 🚀 Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+This project is built with modern web technologies to ensure a fast, responsive, and beautiful user experience:
 
-## React Compiler
+- **Framework:** React 19
+- **Build Tool:** Vite (for lightning-fast hot module replacement and optimized builds)
+- **Routing:** React Router v7
+- **Styling:** Vanilla CSS (custom design system, rich aesthetics, dynamic animations)
+- **Icons:** Lucide React
+- **HTTP Client:** Axios (with custom interceptors for authentication)
+- **Date Formatting:** date-fns
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🌟 Key Features
 
-## Expanding the ESLint configuration
+- **Authentication System:** Secure login, registration, and password recovery.
+- **Video Management:** Upload videos with thumbnails, edit details, and delete.
+- **Interactive UI:** Smooth hover effects, micro-animations, and responsive layouts.
+- **Engagement:** Like videos, add comments, and subscribe to channels.
+- **Dashboard:** A creator studio dashboard to view stats and manage uploaded content.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🛠️ Local Development Setup
+
+To run this project on your local machine, follow these steps:
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/Solanki-Manan/VTube_frontend.git
+cd VTube_frontend
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Set up Environment Variables
+Create a `.env` file in the root directory. You can use the provided `.env.sample` (if available) or create it manually:
+
+```env
+VITE_API_URL=http://localhost:8000/api/v1
+```
+*(When deploying to production, this will automatically switch to your deployed backend URL based on the `import.meta.env.MODE` logic in `src/services/api.js`)*
+
+### 4. Start the Development Server
+```bash
+npm run dev
+```
+Your application will now be running at `http://localhost:5173`.
+
+## 📦 Deployment
+
+This frontend is designed to be easily deployed on platform-as-a-service providers like **Vercel** or **Netlify**. 
+
+1. Connect your GitHub repository to Vercel.
+2. Vercel will automatically detect the Vite build settings.
+3. Make sure to add any necessary environment variables in the Vercel dashboard.
+4. Click Deploy!
+
+## 🤝 Backend Repository
+This frontend communicates with a custom Node.js/Express backend. You can find the backend repository here:
+[VTube Backend (Project_yt)](https://github.com/Solanki-Manan/Project_yt)
+
+---
+*Built with ❤️ by Manan Solanki*

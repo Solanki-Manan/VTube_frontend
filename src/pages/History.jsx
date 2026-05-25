@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { userApi } from '../services/api';
 import VideoCard from '../components/VideoCard';
+import VideoSkeleton from '../components/VideoSkeleton';
 import { History as HistoryIcon, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -11,6 +12,8 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => { document.title = 'VTube — Watch History'; }, []);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -61,9 +64,11 @@ export default function History() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-secondary)' }}>Loading history...</div>
+        <div className="video-grid">
+          {[...Array(8)].map((_, i) => <VideoSkeleton key={i} />)}
+        </div>
       ) : error ? (
-        <div style={{ textAlign: 'center', padding: '100px 0', color: 'red' }}>{error}</div>
+        <div className="error-message">{error}</div>
       ) : history.length === 0 ? (
         <div className="empty-history glass">
           <HistoryIcon size={64} color="var(--text-secondary)" opacity={0.5} />
@@ -125,7 +130,7 @@ export default function History() {
         .header-icon {
           width: 64px;
           height: 64px;
-          background: rgba(123, 44, 191, 0.1);
+          background: var(--color-primary-muted);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -192,7 +197,7 @@ export default function History() {
 
         .history-list {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
           gap: 24px;
         }
 

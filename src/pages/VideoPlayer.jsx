@@ -1,106 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ThumbsUp, ThumbsDown, Share2, MoreHorizontal, ListPlus, X, Plus } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, ListPlus, X, Plus } from 'lucide-react';
 import { videoApi, interactionApi, userApi, playlistApi, subscriptionApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import Comments from '../components/Comments';
 import VideoCard from '../components/VideoCard';
+import VideoPlayerSkeleton from '../components/skeletons/VideoPlayerSkeleton';
 
 export default function VideoPlayer() {
-  const { videoId } = useParams();
-  const navigate = useNavigate();
+  const { videoId }  = useParams();
+  const navigate     = useNavigate();
   const { currentUser } = useAuth();
-  
-  const [video, setVideo] = useState(null);
-  const [suggestedVideos, setSuggestedVideos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  // Interactions State
-  const [likes, setLikes] = useState(0);
-  const [isLiked, setIsLiked] = useState(false);
+  const toast = useToast();
+
+  const [video, setVideo]           = useState(null);
+  const [suggested, setSuggested]   = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [likes, setLikes]           = useState(0);
+  const [isLiked, setIsLiked]       = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscribersCount, setSubscribersCount] = useState(0);
 
-  // Playlist Modal State
+  // Playlist modal
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
-  const [userPlaylists, setUserPlaylists] = useState([]);
-  const [newPlaylistName, setNewPlaylistName] = useState('');
-  const [newPlaylistDesc, setNewPlaylistDesc] = useState('');
-  const [playlistLoading, setPlaylistLoading] = useState(false);
+  const [userPlaylists, setUserPlaylists]         = useState([]);
+  const [newPlaylistName, setNewPlaylistName]     = useState('');
+  const [newPlaylistDesc, setNewPlaylistDesc]     = useState('');
+  const [playlistLoading, setPlaylistLoading]     = useState(false);
 
   useEffect(() => {
-    const fetchVideoData = async () => {
+    document.title = video ? `${video.title} — VTube` : 'VTube';
+  }, [video]);
+
+  useEffect(() => {
+    const fetchAll = async () => {
       try {
         setLoading(true);
-        // Fetch Video
-        const vData = await videoApi.getVideoById(videoId);
-        setVideo(vData.data);
-        
-        // Fetch Suggested Videos
-        const sData = await videoApi.getVideos(1, 15);
-        setSuggestedVideos(sData.data?.videos?.filter(v => v._id !== videoId) || []);
-        
-        // Add to Watch History
+        const [vRes] = await Promise.all([
+          videoApi.getVideoById(videoId),
+        ]);
+        const v = vRes.data;
+        setVideo(v);
+        // Use video title as search query for related/suggested videos
+        const titleQuery = v?.title ? v.title.split(' ').slice(0, 3).join(' ') : '';
+        const suggestedRes = await videoApi.getVideos(1, 15, titleQuery);
+        setSuggested(suggestedRes.data?.videos?.filter(x => x._id !== videoId) || []);
+
         if (currentUser) {
-          try {
-            await userApi.addVideoToHistory(videoId);
-          } catch (e) {
-            console.error("Failed to add to watch history", e);
-          }
+          userApi.addVideoToHistory(videoId).catch(() => {});
         }
 
-        // Fetch Likes
-        const lData = await interactionApi.getVideoLikes(videoId);
-        setLikes(lData.data?.totalLikes || 0);
-        setIsLiked(lData.data?.isLiked || false);
-        
-        // Fetch Channel Profile for Subscribers
-        const channelUsername = vData.data?.owner?.username || vData.data?.ownerDetails?.username;
+        const lRes = await interactionApi.getVideoLikes(videoId);
+        setLikes(lRes.data?.totalLikes || 0);
+        setIsLiked(lRes.data?.isLiked || false);
+
+        const channelUsername = v?.owner?.username || v?.ownerDetails?.username;
         if (channelUsername) {
-          const pData = await userApi.getChannelProfile(channelUsername);
-          setIsSubscribed(pData.data?.isSubscribed || false);
-          setSubscribersCount(pData.data?.subscribersCount || 0);
+          const pRes = await userApi.getChannelProfile(channelUsername);
+          setIsSubscribed(pRes.data?.isSubscribed || false);
+          setSubscribersCount(pRes.data?.subscribersCount || 0);
         }
-
-      } catch (err) {
-        console.error("Failed to load video data", err);
+      } catch {
+        toast.error('Failed to load video. Please try again.', 'Video Error');
       } finally {
         setLoading(false);
       }
     };
-    fetchVideoData();
-    // Scroll to top
-    window.scrollTo(0, 0);
+    fetchAll();
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, [videoId]);
 
   const handleLike = async () => {
     if (!currentUser) return navigate('/login');
     try {
+      // Capture current state BEFORE toggling to avoid stale closure bug
+      const currentlyLiked = isLiked;
       await interactionApi.toggleVideoLike(videoId);
-      setIsLiked(!isLiked);
-      setLikes(prev => isLiked ? prev - 1 : prev + 1);
-    } catch (err) {
-      console.error("Failed to toggle like", err);
-    }
+      setIsLiked(!currentlyLiked);
+      setLikes(v => currentlyLiked ? v - 1 : v + 1);
+    } catch { toast.error('Could not update like.'); }
   };
 
   const handleSubscribe = async () => {
     if (!currentUser) return navigate('/login');
     try {
-      const channelId = video.ownerDetails?._id || video.owner?._id || video.owner;
+      const channelId = video?.ownerDetails?._id || video?.owner?._id || video?.owner;
       await subscriptionApi.toggleSubscription(channelId);
-      setIsSubscribed(!isSubscribed);
-      setSubscribersCount(prev => isSubscribed ? prev - 1 : prev + 1);
-    } catch (err) {
-      console.error("Failed to toggle subscription", err);
-      alert(err.response?.data?.message || "Failed to subscribe");
-    }
-  };
-
-  const openPlaylistModal = async () => {
-    if (!currentUser) return navigate('/login');
-    setShowPlaylistModal(true);
-    fetchUserPlaylists();
+      setIsSubscribed(v => !v);
+      setSubscribersCount(v => isSubscribed ? v - 1 : v + 1);
+      toast.success(isSubscribed ? 'Unsubscribed from channel.' : 'Subscribed!');
+    } catch { toast.error('Could not update subscription.'); }
   };
 
   const fetchUserPlaylists = async () => {
@@ -108,11 +98,14 @@ export default function VideoPlayer() {
       setPlaylistLoading(true);
       const res = await playlistApi.getUserPlaylists(currentUser._id, 1, 50);
       setUserPlaylists(res.data?.playlists || []);
-    } catch (err) {
-      console.error("Failed to fetch playlists", err);
-    } finally {
-      setPlaylistLoading(false);
-    }
+    } catch { toast.error('Failed to fetch playlists.'); }
+    finally  { setPlaylistLoading(false); }
+  };
+
+  const openPlaylistModal = async () => {
+    if (!currentUser) return navigate('/login');
+    setShowPlaylistModal(true);
+    fetchUserPlaylists();
   };
 
   const handleCreatePlaylist = async (e) => {
@@ -123,10 +116,11 @@ export default function VideoPlayer() {
       await playlistApi.createPlaylist(newPlaylistName, newPlaylistDesc);
       setNewPlaylistName('');
       setNewPlaylistDesc('');
-      await fetchUserPlaylists(); // Await to ensure UI updates after fetching
+      await fetchUserPlaylists();
+      toast.success('Playlist created!');
     } catch (err) {
-      alert("Failed to create playlist: " + (err.response?.data?.message || err.message));
-      setPlaylistLoading(false); // Only set false on error, fetchUserPlaylists handles success false
+      toast.error(err.response?.data?.message || 'Failed to create playlist.');
+      setPlaylistLoading(false);
     }
   };
 
@@ -134,127 +128,187 @@ export default function VideoPlayer() {
     try {
       if (isInPlaylist) {
         await playlistApi.removeVideoFromPlaylist(playlistId, videoId);
-        alert(`Video removed from ${playlistName}`);
+        toast.info(`Removed from "${playlistName}"`);
       } else {
         await playlistApi.addVideoToPlaylist(playlistId, videoId);
-        alert(`Video added to ${playlistName} successfully!`);
+        toast.success(`Added to "${playlistName}"`);
       }
-      // Update local state to reflect change instantly
-      setUserPlaylists(prev => prev.map(pl => {
-        if (pl._id === playlistId) {
-          return {
-            ...pl,
-            videos: isInPlaylist 
-              ? pl.videos.filter(v => v !== videoId && v._id !== videoId)
-              : [...pl.videos, videoId]
-          };
-        }
-        return pl;
-      }));
+      setUserPlaylists(prev => prev.map(pl => pl._id === playlistId ? {
+        ...pl,
+        videos: isInPlaylist
+          ? pl.videos.filter(v => v !== videoId && v._id !== videoId)
+          : [...pl.videos, videoId],
+      } : pl));
     } catch (err) {
-      alert("Failed to update playlist: " + (err.response?.data?.message || err.message));
+      toast.error(err.response?.data?.message || 'Failed to update playlist.');
     }
   };
 
+  if (loading) return <VideoPlayerSkeleton />;
 
+  if (!video) return (
+    <div className="empty-state" style={{ minHeight: 'calc(100vh - var(--navbar-height))' }}>
+      <div className="empty-state-title">Video not found</div>
+      <p className="empty-state-desc">This video may have been removed or doesn't exist.</p>
+      <Link to="/" className="btn btn-primary">Go Home</Link>
+    </div>
+  );
 
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: '100px 0' }}>Loading Video...</div>;
-  }
+  const ownerName = video.ownerDetails?.fullName || video.owner?.fullName || 'Unknown Channel';
+  const ownerUsername = video.ownerDetails?.username || video.owner?.username;
+  const ownerAvatar = video.ownerDetails?.avatar || video.owner?.avatar;
 
-  if (!video) {
-    return <div style={{ textAlign: 'center', padding: '100px 0' }}>Video not found!</div>;
-  }
+  const formatTimeAgo = (d) => {
+    const diff = Math.floor((Date.now() - new Date(d)) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    if (diff < 2592000) return `${Math.floor(diff/86400)}d ago`;
+    return `${Math.floor(diff/2592000)}mo ago`;
+  };
 
-  const formatTimeAgo = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now - date) / 1000);
-    if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-    return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
+  const formatViews = (v) => {
+    if (v >= 1_000_000) return `${(v/1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `${(v/1_000).toFixed(1)}K`;
+    return String(v || 0);
   };
 
   return (
-    <div className="player-container">
-      {/* Left Column: Video & Details */}
+    <div className="player-container animate-fade-in">
+      {/* ── Left: Video + Details ── */}
       <div className="primary-column">
         <div className="video-wrapper">
-          <video 
-            src={video.videofile} 
+          <video
+            src={video.videofile}
             poster={video.thumbnailfile}
-            controls 
-            autoPlay 
+            controls
+            autoPlay
             className="video-element"
+            aria-label={video.title}
           />
         </div>
-        
-        <h1 className="video-title">{video.title}</h1>
-        
-        <div className="video-meta-row">
-          <div className="channel-info">
-            <Link to={`/channel/${video.ownerDetails?.username || video.owner?.username}`} className="channel-link">
-              <img 
-                src={video.ownerDetails?.avatar || video.owner?.avatar || 'https://i.pravatar.cc/150?img=11'} 
-                alt={video.ownerDetails?.fullName || 'Channel'} 
-                className="channel-avatar-large" 
+
+        <h1 className="vp-title">{video.title}</h1>
+
+        <div className="vp-meta-row">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <Link to={`/channel/${ownerUsername}`} className="channel-link">
+              <img
+                src={ownerAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&background=2563eb&color=fff`}
+                alt={ownerName}
+                className="vp-channel-avatar"
+                onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(ownerName)}&background=2563eb&color=fff`; }}
               />
-              <div className="channel-text">
-                <h3 className="channel-name">{video.ownerDetails?.fullName || video.owner?.fullName || 'Unknown Channel'}</h3>
-                <p className="subscriber-count">
-                  {subscribersCount} subscribers
-                </p>
+              <div>
+                <div className="vp-channel-name">{ownerName}</div>
+                <div className="vp-sub-count">{formatViews(subscribersCount)} subscribers</div>
               </div>
             </Link>
-            <button 
-              className={`subscribe-btn ${isSubscribed ? 'subscribed' : ''}`}
+            <button
+              className={`subscribe-btn btn-pill ${isSubscribed ? 'subscribed' : ''}`}
               onClick={handleSubscribe}
+              aria-label={isSubscribed ? 'Unsubscribe' : 'Subscribe'}
             >
               {isSubscribed ? 'Subscribed' : 'Subscribe'}
             </button>
           </div>
-          
-          <div className="actions-bar">
-            <div className="action-group glass">
-              <button className={`action-btn ${isLiked ? 'active' : ''}`} onClick={handleLike}>
-                <ThumbsUp size={20} fill={isLiked ? "currentColor" : "none"} />
+
+          <div className="vp-actions">
+            <div className="vp-action-group glass">
+              <button
+                className={`vp-action-btn ${isLiked ? 'active' : ''}`}
+                onClick={handleLike}
+                aria-label={`${isLiked ? 'Unlike' : 'Like'} video — ${likes} likes`}
+              >
+                <ThumbsUp size={18} fill={isLiked ? 'currentColor' : 'none'} />
                 <span>{likes}</span>
               </button>
-              <div className="divider"></div>
-              <button className="action-btn">
-                <ThumbsDown size={20} />
+              <div className="vp-divider" />
+              <button className="vp-action-btn" aria-label="Dislike video">
+                <ThumbsDown size={18} />
               </button>
             </div>
-            
-            <button className="action-btn glass single-btn" onClick={openPlaylistModal}>
-              <ListPlus size={20} />
-              <span>Save</span>
-            </button>
-            
-            <button className="action-btn glass single-btn icon-only">
-              <MoreHorizontal size={20} />
-            </button>
+
+            <div style={{ position: 'relative' }}>
+              <button className="vp-action-btn glass vp-pill-btn" onClick={openPlaylistModal} aria-label="Save to playlist">
+                <ListPlus size={18} /> <span>Save</span>
+              </button>
+
+              {showPlaylistModal && (
+                <>
+                  {/* Invisible overlay to close dropdown when clicking outside */}
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 190 }} onClick={() => setShowPlaylistModal(false)} />
+                  
+                  <div className="playlist-dropdown glass">
+                    <div className="playlist-dropdown-header">
+                      <h3>Save to Playlist</h3>
+                      <button onClick={() => setShowPlaylistModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}>
+                        <X size={18} />
+                      </button>
+                    </div>
+                    
+                    <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 12 }}>
+                      {playlistLoading && userPlaylists.length === 0 ? (
+                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0', fontSize: 'var(--text-sm)' }}>Loading...</div>
+                      ) : userPlaylists.length === 0 ? (
+                        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '10px 0', fontSize: 'var(--text-sm)' }}>No playlists yet.</div>
+                      ) : (
+                        userPlaylists.map(pl => {
+                          const inPl = pl.videos.some(v => v === videoId || v._id === videoId);
+                          return (
+                            <div key={pl._id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                              <input
+                                type="checkbox"
+                                id={`pl-${pl._id}`}
+                                checked={inPl}
+                                onChange={() => handleToggleVideoInPlaylist(pl._id, inPl, pl.name)}
+                                style={{ width: 16, height: 16, accentColor: 'var(--color-primary)', cursor: 'pointer' }}
+                              />
+                              <label htmlFor={`pl-${pl._id}`} style={{ display: 'flex', justifyContent: 'space-between', flex: 1, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>
+                                <span>{pl.name}</span>
+                              </label>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 12 }}>
+                      <h4 style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', marginBottom: 10, fontWeight: 500 }}>
+                        <Plus size={14} /> New Playlist
+                      </h4>
+                      <form onSubmit={handleCreatePlaylist} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <input className="modal-input" style={{ fontSize: 'var(--text-sm)', padding: '6px 10px' }} type="text" placeholder="Playlist name" value={newPlaylistName} onChange={e => setNewPlaylistName(e.target.value)} required />
+                        <input className="modal-input" style={{ fontSize: 'var(--text-sm)', padding: '6px 10px' }} type="text" placeholder="Description (required)" value={newPlaylistDesc} onChange={e => setNewPlaylistDesc(e.target.value)} required />
+                        <button type="submit" className="btn btn-primary" style={{ fontSize: 'var(--text-sm)', padding: '6px' }} disabled={playlistLoading || !newPlaylistName.trim() || !newPlaylistDesc.trim()}>
+                          {playlistLoading ? 'Creating...' : 'Create'}
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="description-box glass">
-          <div className="description-stats">
-            <span style={{ fontWeight: 600 }}>{video.views} views</span>
-            <span style={{ fontWeight: 600 }}>{formatTimeAgo(video.createdAt)}</span>
+        {/* Description */}
+        <div className="vp-description glass">
+          <div className="vp-desc-meta">
+            <span><strong>{formatViews(video.views)}</strong> views</span>
+            <span>{formatTimeAgo(video.createdAt)}</span>
           </div>
-          <p className="description-text">{video.description}</p>
+          <p className="vp-desc-text">{video.description}</p>
         </div>
 
-        {/* Comments Section */}
+        {/* Comments */}
         <Comments videoId={videoId} />
       </div>
 
-      {/* Right Column: Suggested Videos */}
+      {/* ── Right: Suggested ── */}
       <div className="secondary-column">
-        {suggestedVideos.map((v) => (
-          <VideoCard 
+        {suggested.map(v => (
+          <VideoCard
             key={v._id}
             id={v._id}
             title={v.title}
@@ -269,69 +323,7 @@ export default function VideoPlayer() {
         ))}
       </div>
 
-      {/* Playlist Modal */}
-      {showPlaylistModal && (
-        <div className="modal-overlay">
-          <div className="modal-content glass playlist-modal">
-            <div className="modal-header">
-              <h2>Save to Playlist</h2>
-              <button className="close-btn" onClick={() => setShowPlaylistModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="playlists-list">
-              {playlistLoading && userPlaylists.length === 0 ? (
-                <div className="loading-text">Loading playlists...</div>
-              ) : userPlaylists.length === 0 ? (
-                <div className="loading-text">You don't have any playlists yet.</div>
-              ) : (
-                userPlaylists.map(pl => {
-                  const isInPlaylist = pl.videos.some(v => v === videoId || v._id === videoId);
-                  return (
-                    <div key={pl._id} className="playlist-checkbox-item">
-                      <input 
-                        type="checkbox" 
-                        id={`pl-${pl._id}`} 
-                        checked={isInPlaylist}
-                        onChange={() => handleToggleVideoInPlaylist(pl._id, isInPlaylist, pl.name)}
-                      />
-                      <label htmlFor={`pl-${pl._id}`}>
-                        <span className="pl-name">{pl.name}</span>
-                        <span className="pl-privacy">Private</span>
-                      </label>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="create-playlist-section">
-              <h3><Plus size={16}/> Create new playlist</h3>
-              <form onSubmit={handleCreatePlaylist}>
-                <input 
-                  type="text" 
-                  placeholder="Name" 
-                  value={newPlaylistName}
-                  onChange={(e) => setNewPlaylistName(e.target.value)}
-                  required
-                  className="modal-input"
-                />
-                <input 
-                  type="text" 
-                  placeholder="Description (Optional)" 
-                  value={newPlaylistDesc}
-                  onChange={(e) => setNewPlaylistDesc(e.target.value)}
-                  className="modal-input"
-                />
-                <button type="submit" className="create-pl-btn" disabled={playlistLoading || !newPlaylistName.trim()}>
-                  {playlistLoading ? 'Creating...' : 'Create'}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal moved to dropdown above */}
 
       <style>{`
         .player-container {
@@ -342,321 +334,119 @@ export default function VideoPlayer() {
           margin: 0 auto;
           align-items: flex-start;
         }
-
-        .primary-column {
-          flex: 1;
-          min-width: 0;
-        }
-
+        .primary-column { flex: 1; min-width: 0; }
         .secondary-column {
-          width: 400px;
+          width: 380px;
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 14px;
+          flex-shrink: 0;
         }
-
         .video-wrapper {
           width: 100%;
           aspect-ratio: 16/9;
           background: #000;
           border-radius: var(--radius-lg);
           overflow: hidden;
-          margin-bottom: 20px;
+          margin-bottom: 18px;
+          box-shadow: var(--shadow-lg);
         }
-
-        .video-element {
-          width: 100%;
-          height: 100%;
-          outline: none;
-        }
-
-        .video-title {
-          font-size: 1.5rem;
-          font-weight: 700;
+        .video-element { width: 100%; height: 100%; outline: none; }
+        .vp-title {
+          font-size: var(--text-2xl);
+          font-weight: var(--font-bold);
           color: var(--text-primary);
-          margin-bottom: 16px;
-          line-height: 1.3;
+          margin-bottom: 14px;
+          line-height: var(--leading-snug);
         }
-
-        .video-meta-row {
+        .vp-meta-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
           flex-wrap: wrap;
           gap: 16px;
-          margin-bottom: 20px;
+          margin-bottom: 18px;
         }
-
-        .channel-info {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .channel-avatar-large {
-          width: 48px;
-          height: 48px;
+        .vp-channel-avatar {
+          width: 44px; height: 44px;
           border-radius: 50%;
           object-fit: cover;
         }
-
-        .channel-text {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .channel-name {
-          font-weight: 700;
-          font-size: 1.1rem;
-          color: var(--text-primary);
-        }
-
-        .subscriber-count {
-          font-size: 0.85rem;
-          color: var(--text-secondary);
-        }
-
-        .subscribe-btn {
-          background: var(--text-primary);
-          color: var(--bg-primary);
-          border: none;
-          padding: 10px 20px;
-          border-radius: var(--radius-full);
-          font-weight: 600;
-          cursor: pointer;
-          margin-left: 12px;
-          transition: all 0.2s;
-        }
-
-        .subscribe-btn:hover {
-          opacity: 0.9;
-        }
-
-        .subscribe-btn.subscribed {
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
-          border: 1px solid var(--glass-border);
-        }
-
-        .actions-bar {
-          display: flex;
-          gap: 12px;
-          align-items: center;
-        }
-
-        .action-group {
+        .vp-channel-name { font-weight: var(--font-semibold); font-size: var(--text-base); }
+        .vp-sub-count { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+        .vp-actions { display: flex; gap: 10px; align-items: center; }
+        .vp-action-group {
           display: flex;
           align-items: center;
           border-radius: var(--radius-full);
-          padding: 0;
           overflow: hidden;
         }
-
-        .action-btn {
+        .vp-action-btn {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           background: transparent;
           border: none;
           color: var(--text-primary);
-          padding: 10px 16px;
+          padding: 9px 16px;
           cursor: pointer;
-          font-weight: 600;
-          transition: background 0.2s;
+          font-weight: var(--font-semibold);
+          font-size: var(--text-sm);
+          font-family: inherit;
+          transition: background var(--transition-fast);
         }
-
-        .action-btn:hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
-
-        .action-btn.active {
-          color: var(--accent-primary);
-        }
-
-        .divider {
-          width: 1px;
-          height: 24px;
-          background: var(--glass-border);
-        }
-
-        .single-btn {
-          border-radius: var(--radius-full);
-        }
-
-        .icon-only {
-          padding: 10px;
-        }
-
-        .description-box {
+        .vp-action-btn:hover { background: rgba(255,255,255,0.08); }
+        .vp-action-btn.active { color: var(--color-primary-light); }
+        .vp-divider { width: 1px; height: 24px; background: var(--border-default); }
+        .vp-pill-btn { border-radius: var(--radius-full); padding: 9px 18px; }
+        .vp-description {
           padding: 16px;
           border-radius: var(--radius-md);
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+          margin-bottom: 24px;
         }
-
-        .description-stats {
+        .vp-desc-meta {
           display: flex;
-          gap: 12px;
-          font-size: 0.95rem;
+          gap: 16px;
+          font-size: var(--text-sm);
+          margin-bottom: 10px;
+          color: var(--text-secondary);
         }
-
-        .description-text {
-          font-size: 0.95rem;
-          line-height: 1.5;
+        .vp-desc-text {
+          font-size: var(--text-sm);
+          line-height: var(--leading-relaxed);
           white-space: pre-wrap;
           color: var(--text-primary);
         }
-
-        @media (max-width: 1024px) {
-          .player-container {
-            flex-direction: column;
-          }
-          .secondary-column {
-            width: 100%;
-          }
-        }
-
-        /* Modal Styles */
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
+        .playlist-dropdown {
+          position: absolute;
+          top: calc(100% + 8px);
           right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
-          backdrop-filter: blur(5px);
+          width: 280px;
+          border-radius: var(--radius-md);
+          box-shadow: var(--shadow-xl);
+          z-index: 200;
+          padding: 16px;
           display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
+          flex-direction: column;
+          animation: fadeInScale 0.15s ease-out;
         }
-
-        .modal-content {
-          width: 90%;
-          max-width: 400px;
-          padding: 24px;
-          border-radius: var(--radius-lg);
-          background: var(--bg-secondary);
-        }
-
-        .modal-header {
+        .playlist-dropdown-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 16px;
-          padding-bottom: 16px;
-          border-bottom: 1px solid var(--glass-border);
+          margin-bottom: 12px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--border-subtle);
         }
-
-        .close-btn {
-          background: transparent;
-          border: none;
-          color: var(--text-secondary);
-          cursor: pointer;
-        }
-
-        .close-btn:hover {
+        .playlist-dropdown-header h3 {
+          font-size: var(--text-sm);
+          font-weight: var(--font-semibold);
           color: var(--text-primary);
         }
-
-        .playlists-list {
-          max-height: 250px;
-          overflow-y: auto;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          margin-bottom: 24px;
-          padding-right: 8px;
+        @media (max-width: 1024px) {
+          .player-container { flex-direction: column; }
+          .secondary-column { width: 100%; }
         }
-
-        .playlist-checkbox-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .playlist-checkbox-item input[type="checkbox"] {
-          width: 18px;
-          height: 18px;
-          accent-color: var(--accent-primary);
-          cursor: pointer;
-        }
-
-        .playlist-checkbox-item label {
-          display: flex;
-          justify-content: space-between;
-          flex: 1;
-          cursor: pointer;
-          align-items: center;
-        }
-
-        .pl-name {
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-
-        .pl-privacy {
-          font-size: 0.8rem;
-          color: var(--text-secondary);
-        }
-
-        .loading-text {
-          text-align: center;
-          color: var(--text-secondary);
-          padding: 20px 0;
-        }
-
-        .create-playlist-section {
-          border-top: 1px solid var(--glass-border);
-          padding-top: 16px;
-        }
-
-        .create-playlist-section h3 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 1rem;
-          margin-bottom: 16px;
-          color: var(--text-primary);
-        }
-
-        .create-playlist-section form {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .modal-input {
-          width: 100%;
-          padding: 10px 12px;
-          border-radius: var(--radius-md);
-          border: 1px solid var(--glass-border);
-          background: rgba(0,0,0,0.2);
-          color: var(--text-primary);
-          font-family: inherit;
-        }
-
-        .modal-input:focus {
-          outline: none;
-          border-color: var(--accent-primary);
-        }
-
-        .create-pl-btn {
-          background: var(--text-primary);
-          color: var(--bg-primary);
-          border: none;
-          padding: 10px;
-          border-radius: var(--radius-md);
-          font-weight: 600;
-          cursor: pointer;
-        }
-
-        .create-pl-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
       `}</style>
     </div>
   );

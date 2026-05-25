@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { playlistApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import VideoCard from '../components/VideoCard';
-import { Trash2, PlayCircle, ListVideo, Edit2, X, Check } from 'lucide-react';
+import { Trash2, PlayCircle, ListVideo, Edit2, X, Check, AlertTriangle } from 'lucide-react';
 
 export default function Playlist() {
   const { playlistId } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const toast = useToast();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   
   const [playlist, setPlaylist] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,22 +42,21 @@ export default function Playlist() {
   };
 
   const handleRemoveVideo = async (videoId) => {
-    if (window.confirm("Remove this video from the playlist?")) {
-      try {
-        await playlistApi.removeVideoFromPlaylist(playlistId, videoId);
-        setPlaylist({
-          ...playlist,
-          videos: playlist.videos.filter(v => v._id !== videoId)
-        });
-      } catch (err) {
-        alert(err.response?.data?.message || 'Failed to remove video');
-      }
+    try {
+      await playlistApi.removeVideoFromPlaylist(playlistId, videoId);
+      setPlaylist({
+        ...playlist,
+        videos: playlist.videos.filter(v => v._id !== videoId)
+      });
+      toast.success('Video removed from playlist.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove video');
     }
   };
 
   const handleSaveEdit = async () => {
     if (!editName.trim()) {
-      alert("Playlist name cannot be empty");
+      toast.warning('Playlist name cannot be empty.');
       return;
     }
     
@@ -67,8 +69,9 @@ export default function Playlist() {
         description: res.data.description
       });
       setIsEditing(false);
+      toast.success('Playlist updated!');
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update playlist');
+      toast.error(err.response?.data?.message || 'Failed to update playlist');
     } finally {
       setSaving(false);
     }
@@ -81,13 +84,13 @@ export default function Playlist() {
   };
 
   const handleDeletePlaylist = async () => {
-    if (window.confirm("Are you sure you want to permanently delete this playlist?")) {
-      try {
-        await playlistApi.deletePlaylist(playlistId);
-        navigate(`/channel/${currentUser.username}`);
-      } catch (err) {
-        alert(err.response?.data?.message || 'Failed to delete playlist');
-      }
+    try {
+      await playlistApi.deletePlaylist(playlistId);
+      toast.success('Playlist deleted.');
+      navigate(`/channel/${currentUser.username}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete playlist');
+      setConfirmDelete(false);
     }
   };
 
@@ -164,10 +167,26 @@ export default function Playlist() {
         
         {isOwner && (
           <div className="playlist-actions">
-            <button className="delete-playlist-btn" onClick={handleDeletePlaylist}>
-              <Trash2 size={20} />
-              Delete Playlist
-            </button>
+            {confirmDelete ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p style={{ color: 'var(--color-error)', fontSize: 'var(--text-sm)', textAlign: 'center', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                  <AlertTriangle size={16} /> Delete permanently?
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="delete-playlist-btn" onClick={handleDeletePlaylist} style={{ flex: 1 }}>
+                    <Trash2 size={16} /> Yes, Delete
+                  </button>
+                  <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-full)', padding: '10px', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className="delete-playlist-btn" onClick={() => setConfirmDelete(true)}>
+                <Trash2 size={20} />
+                Delete Playlist
+              </button>
+            )}
           </div>
         )}
       </div>

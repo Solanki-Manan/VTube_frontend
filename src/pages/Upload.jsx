@@ -33,7 +33,14 @@ export default function Upload() {
   }, [previews]);
 
   if (!currentUser) {
-    return <div className="login-prompt">Please log in to upload videos.</div>;
+    return (
+      <div className="login-prompt">
+        <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎬</div>
+        <h2 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>Sign in to Upload</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>You need to be logged in to share your videos with the world.</p>
+        <a href="/login" style={{ background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-light))', color: 'white', padding: '12px 32px', borderRadius: 'var(--radius-full)', textDecoration: 'none', fontWeight: 600, fontSize: '1rem' }}>Sign In</a>
+      </div>
+    );
   }
 
   const handleChange = (e) => {
@@ -101,9 +108,10 @@ export default function Upload() {
         </div>
       </div>
 
-      <div className="upload-layout">
+      {/* Single form wrapping BOTH main content and sidebar so Publish button works correctly */}
+      <form onSubmit={handleSubmit} className="upload-layout">
         <div className="upload-main glass">
-          <form onSubmit={handleSubmit} className="upload-form">
+          <div className="upload-form">
             {status === 'error' && <div className="error-banner">{errorMsg}</div>}
             {status === 'success' && (
               <div className="success-banner">
@@ -149,7 +157,7 @@ export default function Upload() {
                 </div>
               </div>
             </div>
-          </form>
+          </div>
         </div>
 
         <div className="upload-sidebar">
@@ -215,15 +223,14 @@ export default function Upload() {
               <button 
                 type="submit" 
                 className="publish-btn" 
-                onClick={handleSubmit}
-                disabled={!formData.title || !formData.description || !formData.videofile || !formData.thumbnailfile}
+                disabled={!formData.title || !formData.description || !formData.videofile || !formData.thumbnailfile || status === 'uploading'}
               >
                 Publish Video
               </button>
             )}
           </div>
         </div>
-      </div>
+      </form>
 
       <style>{`
         .upload-container {

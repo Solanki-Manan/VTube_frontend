@@ -1,109 +1,124 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { ChevronUp } from 'lucide-react';
 import VideoCard from '../components/VideoCard';
 import VideoSkeleton from '../components/VideoSkeleton';
 import { videoApi } from '../services/api';
 
+const CATEGORIES = ['All','Gaming','Music','Coding','Podcasts','News','Education','Sports'];
+
 export default function Home() {
-  const [videos, setVideos] = useState([]);
+  const [videos, setVideos]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  // Infinite scroll state
-  const [page, setPage] = useState(1);
+  const [error, setError]     = useState(null);
+  const [page, setPage]       = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('All');
+
   const observer = useRef();
-  
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
 
-  const categories = ["All", "Gaming", "Music", "Live", "Computer Programming", "Podcasts", "News"];
-  const [activeCategory, setActiveCategory] = useState("All");
+  // Document title
+  useEffect(() => { document.title = 'VTube — Home'; }, []);
 
-  // Reset videos and page when query changes
+  // Back-to-top visibility
+  useEffect(() => {
+    const handler = () => setShowBackToTop(window.scrollY > 500);
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
+  }, []);
+
+  // Reset on query/category change
   useEffect(() => {
     setVideos([]);
     setPage(1);
     setHasMore(true);
+    setError(null);
   }, [query, activeCategory]);
 
   useEffect(() => {
+    // If page is not 1 and there's no more data, abort.
+    // By always allowing page === 1 to fetch, we prevent the stale 'hasMore' race condition bug.
+    if (!hasMore && page !== 1) return;
+    
     const fetchVideos = async () => {
       try {
         if (page === 1) setLoading(true);
-        const data = await videoApi.getVideos(page, 10, query);
         
-        const fetchedVideos = data.data?.videos || [];
+        // Pass the category as a search query to filter videos in the backend
+        const searchQuery = query ? query : (activeCategory !== 'All' ? activeCategory : '');
         
-        if (fetchedVideos.length === 0) {
-          setHasMore(false);
-        } else {
-          setVideos(prev => page === 1 ? fetchedVideos : [...prev, ...fetchedVideos]);
-          if (fetchedVideos.length < 10) setHasMore(false);
-        }
+        const data = await videoApi.getVideos(page, 12, searchQuery);
+        const fetched = data.data?.videos || [];
+        
+        setVideos(prev => page === 1 ? fetched : [...prev, ...fetched]);
+        if (fetched.length < 12) setHasMore(false);
       } catch (err) {
-        console.error("Failed to fetch videos", err);
-        setError("Failed to load videos. Is your backend running?");
+        console.error("Home video fetch error:", err);
+        setError(`Failed to load videos. Error: ${err.message || JSON.stringify(err)}`);
       } finally {
         setLoading(false);
       }
     };
-    
-    if (hasMore) {
-      fetchVideos();
-    }
+    fetchVideos();
   }, [query, activeCategory, page]);
 
-  const lastVideoElementRef = useCallback(node => {
+  // Infinite scroll observer
+  const lastVideoRef = useCallback(node => {
     if (loading) return;
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore) {
-        setPage(prevPage => prevPage + 1);
-      }
-    });
+      if (entries[0].isIntersecting && hasMore) setPage(p => p + 1);
+    }, { rootMargin: '200px' });
     if (node) observer.current.observe(node);
   }, [loading, hasMore]);
 
   return (
-    <div className="home-container">
-      <div className="categories glass">
-        {['All', 'Gaming', 'Music', 'Live', 'Computer Programming', 'Podcasts', 'News'].map((cat) => (
-          <button key={cat} className={`category-pill ${activeCategory === cat ? 'active' : ''}`} onClick={() => setActiveCategory(cat)}>{cat}</button>
+    <div className="home-container animate-fade-in">
+      {/* Category pills */}
+      <div className="categories-bar" role="tablist" aria-label="Video categories">
+        {CATEGORIES.map(cat => (
+          <button
+            key={cat}
+            className={`category-pill ${activeCategory === cat ? 'active' : ''}`}
+            onClick={() => setActiveCategory(cat)}
+            role="tab"
+            aria-selected={activeCategory === cat}
+          >
+            {cat}
+          </button>
         ))}
       </div>
-      
-      {error ? (
-        <div className="error-message" style={{ margin: 20 }}>{error}</div>
-      ) : videos.length === 0 && !loading ? (
-        <div style={{ textAlign: 'center', padding: 50 }}>No videos found! Try uploading one.</div>
-      ) : (
+
+      {/* Error */}
+      {error && (
+        <div className="error-message" style={{ marginBottom: 24 }}>{error}</div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && videos.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state-icon">📹</div>
+          <div className="empty-state-title">No videos found</div>
+          <p className="empty-state-desc">
+            {query ? `No results for "${query}". Try a different search.` : 'Be the first to upload a video!'}
+          </p>
+        </div>
+      )}
+
+      {/* Video grid */}
+      {(videos.length > 0 || loading) && (
         <div className="video-grid">
           {videos.map((video, index) => {
-            if (videos.length === index + 1) {
-              return (
-                <div ref={lastVideoElementRef} key={video._id}>
-                  <VideoCard 
-                    id={video._id}
-                    title={video.title}
-                    channelName={video.ownerDetails?.fullName || video.owner?.fullName || 'Unknown Channel'}
-                    username={video.ownerDetails?.username || video.owner?.username}
-                    views={video.views}
-                    createdAt={video.createdAt}
-                    thumbnail={video.thumbnailfile}
-                    avatar={video.ownerDetails?.avatar || video.owner?.avatar}
-                    duration={video.duration}
-                  />
-                </div>
-              );
-            } else {
-              return (
-                <VideoCard 
-                  key={video._id}
+            const isLast = index === videos.length - 1;
+            return (
+              <div ref={isLast ? lastVideoRef : null} key={video._id}>
+                <VideoCard
                   id={video._id}
                   title={video.title}
-                  channelName={video.ownerDetails?.fullName || video.owner?.fullName || 'Unknown Channel'}
+                  channelName={video.ownerDetails?.fullName || video.owner?.fullName || 'Unknown'}
                   username={video.ownerDetails?.username || video.owner?.username}
                   views={video.views}
                   createdAt={video.createdAt}
@@ -111,75 +126,31 @@ export default function Home() {
                   avatar={video.ownerDetails?.avatar || video.owner?.avatar}
                   duration={video.duration}
                 />
-              );
-            }
+              </div>
+            );
           })}
-          
-          {loading && [...Array(8)].map((_, i) => <VideoSkeleton key={`skeleton-${i}`} />)}
-        </div>
-      )}
-      
-      {!hasMore && videos.length > 0 && (
-        <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-secondary)' }}>
-          You've reached the end!
+          {/* Skeleton placeholders */}
+          {loading && [...Array(12)].map((_, i) => <VideoSkeleton key={`sk-${i}`} />)}
         </div>
       )}
 
-      <style>{`
-        .home-container {
-          padding: 24px;
-          max-width: 1800px;
-          margin: 0 auto;
-        }
-        
-        .categories {
-          display: flex;
-          gap: 12px;
-          padding: 12px;
-          border-radius: var(--radius-full);
-          margin-bottom: 32px;
-          overflow-x: auto;
-          scrollbar-width: none; /* Firefox */
-        }
-        
-        .categories::-webkit-scrollbar {
-          display: none;
-        }
-        
-        .category-pill {
-          background: var(--bg-tertiary);
-          border: 1px solid var(--glass-border);
-          color: var(--text-primary);
-          padding: 8px 16px;
-          border-radius: var(--radius-full);
-          cursor: pointer;
-          white-space: nowrap;
-          font-weight: 500;
-          transition: all var(--transition-fast);
-        }
-        
-        .category-pill:hover, .category-pill.active {
-          background: var(--accent-primary);
-          border-color: var(--accent-secondary);
-          box-shadow: 0 0 10px var(--accent-glow);
-        }
-        
-        .video-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-          gap: 24px;
-        }
-        
-        /* Staggered animation delays for the grid items */
-        .video-grid > *:nth-child(1) { animation-delay: 0.1s; }
-        .video-grid > *:nth-child(2) { animation-delay: 0.2s; }
-        .video-grid > *:nth-child(3) { animation-delay: 0.3s; }
-        .video-grid > *:nth-child(4) { animation-delay: 0.4s; }
-        .video-grid > *:nth-child(5) { animation-delay: 0.5s; }
-        .video-grid > *:nth-child(6) { animation-delay: 0.6s; }
-        .video-grid > *:nth-child(7) { animation-delay: 0.7s; }
-        .video-grid > *:nth-child(8) { animation-delay: 0.8s; }
-      `}</style>
+      {/* End of feed */}
+      {!hasMore && videos.length > 0 && (
+        <div className="end-of-feed">
+          <span>·</span> You've reached the end <span>·</span>
+        </div>
+      )}
+
+      {/* Back to top */}
+      {showBackToTop && (
+        <button
+          className="back-to-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+        >
+          <ChevronUp size={22} />
+        </button>
+      )}
     </div>
   );
 }

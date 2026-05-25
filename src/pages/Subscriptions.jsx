@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { subscriptionApi } from '../services/api';
 import VideoCard from '../components/VideoCard';
+import VideoSkeleton from '../components/VideoSkeleton';
 import { PlaySquare } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 
 export default function Subscriptions() {
   const { currentUser } = useAuth();
@@ -11,6 +12,8 @@ export default function Subscriptions() {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => { document.title = 'VTube — Subscriptions'; }, []);
 
   useEffect(() => {
     const fetchSubscribedVideos = async () => {
@@ -36,43 +39,7 @@ export default function Subscriptions() {
     }
   }, [currentUser]);
 
-  if (!currentUser) {
-    return (
-      <div className="empty-state">
-        <PlaySquare size={48} className="empty-icon" />
-        <h2>Sign in to see updates from your favorite channels</h2>
-        <Link to="/login" className="login-btn">Log In</Link>
-        <style>{`
-          .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 60vh;
-            text-align: center;
-            gap: 16px;
-          }
-          .empty-icon {
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-          }
-          .login-btn {
-            background: var(--accent-primary);
-            color: white;
-            padding: 10px 24px;
-            border-radius: var(--radius-full);
-            text-decoration: none;
-            font-weight: 600;
-            margin-top: 16px;
-            transition: opacity var(--transition-fast);
-          }
-          .login-btn:hover {
-            opacity: 0.9;
-          }
-        `}</style>
-      </div>
-    );
-  }
+  if (!currentUser) return <Navigate to="/login" />;
 
   return (
     <div className="home-container">
@@ -92,9 +59,11 @@ export default function Subscriptions() {
       )}
       
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 50 }}>Loading your feed...</div>
+        <div className="video-grid">
+          {[...Array(8)].map((_, i) => <VideoSkeleton key={i} />)}
+        </div>
       ) : error ? (
-        <div className="error-message" style={{ margin: 20 }}>{error}</div>
+        <div className="error-message" style={{ margin: '20px 0' }}>{error}</div>
       ) : videos.length === 0 ? (
         <div className="empty-state">
           <PlaySquare size={48} className="empty-icon" />
@@ -184,7 +153,7 @@ export default function Subscriptions() {
         }
 
         .channel-bubble:hover img {
-          border-color: var(--accent-primary);
+          border-color: var(--color-primary);
         }
 
         .channel-bubble span {

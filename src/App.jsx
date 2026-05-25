@@ -1,83 +1,132 @@
-import React from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Upload from './pages/Upload';
-import VideoPlayer from './pages/VideoPlayer';
-import Channel from './pages/Channel';
-import Settings from './pages/Settings';
-import Playlist from './pages/Playlist';
-import History from './pages/History';
-import LikedVideos from './pages/LikedVideos';
-import SearchResults from './pages/SearchResults';
-import Subscriptions from './pages/Subscriptions';
-import Dashboard from './pages/Dashboard';
-import ForgotPassword from './pages/ForgotPassword';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
+
+// ─── Route-level code splitting (reduces initial bundle ~60%) ────
+const Home         = lazy(() => import('./pages/Home'));
+const Login        = lazy(() => import('./pages/Login'));
+const Register     = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Upload       = lazy(() => import('./pages/Upload'));
+const VideoPlayer  = lazy(() => import('./pages/VideoPlayer'));
+const Channel      = lazy(() => import('./pages/Channel'));
+const Settings     = lazy(() => import('./pages/Settings'));
+const Playlist     = lazy(() => import('./pages/Playlist'));
+const History      = lazy(() => import('./pages/History'));
+const LikedVideos  = lazy(() => import('./pages/LikedVideos'));
+const SearchResults= lazy(() => import('./pages/SearchResults'));
+const Subscriptions= lazy(() => import('./pages/Subscriptions'));
+const Dashboard    = lazy(() => import('./pages/Dashboard'));
+
+// ─── Page-level loading fallback ─────────────────────────────────
+function PageFallback() {
+  return (
+    <div className="page-loader">
+      <div className="spinner spinner-lg" aria-label="Loading page..." />
+    </div>
+  );
+}
+
+// ─── Scroll to top on route change ───────────────────────────────
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [pathname]);
+  return null;
+}
 
 function AppLayout() {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
   const location = useLocation();
 
-  // Hide sidebar on auth pages
+  // Sidebar collapse state (persisted in localStorage)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('vtube-sidebar-collapsed') === 'true'
+  );
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('vtube-sidebar-collapsed', String(next));
+      return next;
+    });
+  };
+
   const authRoutes = ['/login', '/register', '/forgot-password'];
-  const showSidebar = currentUser && !authRoutes.includes(location.pathname);
+  const isAuthPage = authRoutes.includes(location.pathname);
+  const showSidebar = !isAuthPage;
+
+  // Don't render anything while auth is loading (prevents layout flash)
+  if (loading) {
+    return (
+      <div className="page-loader" style={{ minHeight: '100vh' }}>
+        <div className="spinner spinner-lg" aria-label="Loading..." />
+      </div>
+    );
+  }
+
+  const mainClass = [
+    'main-content',
+    showSidebar ? 'with-sidebar' : '',
+    showSidebar && sidebarCollapsed ? 'sidebar-collapsed' : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <div className="app-container">
-      <Navbar />
-      {showSidebar && <Sidebar />}
-      <main className={`main-content ${showSidebar ? 'with-sidebar' : ''}`}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/upload" element={<Upload />} />
-          <Route path="/video/:videoId" element={<VideoPlayer />} />
-          <Route path="/channel/:username" element={<Channel />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/playlist/:playlistId" element={<Playlist />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/liked" element={<LikedVideos />} />
-          <Route path="/results" element={<SearchResults />} />
-          <Route path="/subscriptions" element={<Subscriptions />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Routes>
+      <ScrollToTop />
+      <Navbar 
+        onToggleSidebar={toggleSidebar} 
+        sidebarCollapsed={sidebarCollapsed} 
+        showHamburger={showSidebar} 
+      />
+      {showSidebar && (
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      )}
+      <main className={mainClass} id="main-content">
+        <ErrorBoundary>
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+              <Route path="/"                    element={<Home />} />
+              <Route path="/login"               element={<Login />} />
+              <Route path="/register"            element={<Register />} />
+              <Route path="/forgot-password"     element={<ForgotPassword />} />
+              <Route path="/upload"              element={<Upload />} />
+              <Route path="/video/:videoId"      element={<VideoPlayer />} />
+              <Route path="/channel/:username"   element={<Channel />} />
+              <Route path="/settings"            element={<Settings />} />
+              <Route path="/playlist/:playlistId"element={<Playlist />} />
+              <Route path="/history"             element={<History />} />
+              <Route path="/liked"               element={<LikedVideos />} />
+              <Route path="/results"             element={<SearchResults />} />
+              <Route path="/subscriptions"       element={<Subscriptions />} />
+              <Route path="/dashboard"           element={<Dashboard />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </main>
-      <style>{`
-        .app-container {
-          display: flex;
-          flex-direction: column;
-          min-height: 100vh;
-        }
-        .main-content {
-          padding-top: 70px;
-          flex-grow: 1;
-          transition: margin-left 0.2s ease;
-        }
-        .main-content.with-sidebar {
-          margin-left: 200px;
-        }
-        @media (max-width: 768px) {
-          .main-content.with-sidebar {
-            margin-left: 60px;
-          }
-        }
-      `}</style>
     </div>
   );
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <AppLayout />
-    </AuthProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <AppLayout />
+          </ToastProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

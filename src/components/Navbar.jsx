@@ -1,116 +1,131 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Video, LogOut, Sun, Moon } from 'lucide-react';
+import {
+  Search, Video, Sun, Moon, Monitor, Bell,
+  LogOut, Settings, BarChart2, User, ChevronDown, Menu
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { videoApi } from '../services/api';
 
-export default function Navbar() {
-  const [searchQuery, setSearchQuery] = useState('');
+const THEME_ICONS = {
+  dark:   <Moon size={17} />,
+  light:  <Sun size={17} />,
+  system: <Monitor size={17} />,
+};
+
+const THEME_LABELS = { dark: 'Dark', light: 'Light', system: 'System' };
+
+export default function Navbar({ onToggleSidebar, showHamburger }) {
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [suggestions, setSuggestions]     = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showUserMenu, setShowUserMenu]   = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount]           = useState(1);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+
   const { currentUser, logout } = useAuth();
+  const { theme, toggleTheme }  = useTheme();
   const navigate = useNavigate();
 
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const searchRef = useRef(null);
+  const searchRef  = useRef(null);
+  const userMenuRef = useRef(null);
+  const notifRef = useRef(null);
 
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
-
+  // ── Search suggestions (debounced 300ms) ──
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
-  };
-
-  useEffect(() => {
-    const fetchSuggestions = async () => {
-      if (!searchQuery.trim()) {
-        setSuggestions([]);
-        return;
-      }
+    if (!searchQuery.trim()) { setSuggestions([]); return; }
+    const timer = setTimeout(async () => {
       try {
-        const data = await videoApi.getVideos(1, 5, searchQuery);
+        const data = await videoApi.getVideos(1, 6, searchQuery);
         setSuggestions(data.data?.videos || []);
-      } catch (err) {
-        console.error("Failed to fetch suggestions", err);
-      }
-    };
-
-    const timer = setTimeout(() => {
-      fetchSuggestions();
+      } catch { /* silent */ }
     }, 300);
-
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // ── Close dropdowns on outside click ──
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setShowSuggestions(false);
-      }
+    const handler = (e) => {
+      if (searchRef.current  && !searchRef.current.contains(e.target))  setShowSuggestions(false);
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setShowUserMenu(false);
+      if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      setShowSuggestions(false);
-      navigate(`/results?search_query=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      navigate(`/`);
-    }
+    const q = searchQuery.trim();
+    setShowSuggestions(false);
+    setShowMobileSearch(false);
+    navigate(q ? `/results?search_query=${encodeURIComponent(q)}` : '/');
   };
 
-  const handleSuggestionClick = (query) => {
-    setSearchQuery(query);
+  const handleSuggestionClick = (title) => {
+    setSearchQuery(title);
     setShowSuggestions(false);
-    navigate(`/results?search_query=${encodeURIComponent(query)}`);
+    navigate(`/results?search_query=${encodeURIComponent(title)}`);
   };
 
   const handleLogout = async () => {
+    setShowUserMenu(false);
     await logout();
     navigate('/login');
   };
 
   return (
-    <nav className="navbar glass">
+    <nav className="navbar glass" role="banner">
+      {/* ─── Left ─── */}
       <div className="nav-left">
-        <Link to="/" className="logo">
-          <div className="logo-icon"><Video size={24} color="var(--accent-primary)" /></div>
-          <span>VTube</span>
+        {showHamburger && (
+          <button
+            className="icon-btn"
+            onClick={onToggleSidebar}
+            aria-label="Toggle sidebar"
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        <Link to="/" className="logo" aria-label="VTube Home">
+          <div className="logo-icon">
+            <Video size={22} color="var(--color-primary-light)" />
+          </div>
+          <span className="logo-text">V<span className="logo-accent">Tube</span></span>
         </Link>
       </div>
 
-      <div className="nav-center">
-        <div className="search-container" ref={searchRef}>
-          <form onSubmit={handleSearch} className="search-bar">
-            <input 
-              type="text" 
-              placeholder="Search premium content..." 
+      {/* ─── Center Search (desktop) ─── */}
+      <div className="nav-center" ref={searchRef}>
+        <div className="search-container">
+          <form onSubmit={handleSearch} className="search-bar" role="search">
+            <input
+              type="search"
+              placeholder="Search videos, channels..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
+              autoComplete="off"
+              onChange={e => { setSearchQuery(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => searchQuery && setShowSuggestions(true)}
+              aria-label="Search"
             />
-            <button type="submit" className="search-btn"><Search size={20} /></button>
+            <button type="submit" className="search-btn" aria-label="Submit search">
+              <Search size={17} />
+            </button>
           </form>
-          
+
           {showSuggestions && suggestions.length > 0 && (
-            <div className="search-suggestions glass">
-              {suggestions.map((video) => (
-                <div 
-                  key={video._id} 
+            <div className="search-suggestions glass" role="listbox" aria-label="Search suggestions">
+              {suggestions.map(v => (
+                <div
+                  key={v._id}
                   className="suggestion-item"
-                  onClick={() => handleSuggestionClick(video.title)}
+                  role="option"
+                  onClick={() => handleSuggestionClick(v.title)}
                 >
-                  <Search size={16} className="suggestion-icon" />
-                  <span className="suggestion-text">{video.title}</span>
+                  <Search size={15} className="suggestion-icon" />
+                  <span className="suggestion-text">{v.title}</span>
                 </div>
               ))}
             </div>
@@ -118,217 +133,149 @@ export default function Navbar() {
         </div>
       </div>
 
+      {/* ─── Right ─── */}
       <div className="nav-right">
-        <button onClick={toggleTheme} className="icon-btn theme-btn" title="Toggle Theme">
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        {/* Mobile search toggle */}
+        <button
+          className="icon-btn mobile-search-btn"
+          onClick={() => setShowMobileSearch(v => !v)}
+          aria-label="Search"
+          style={{ display: 'none' }}
+        >
+          <Search size={20} />
         </button>
-        
+
+        {/* Theme toggle */}
+        <button
+          className="icon-btn theme-btn"
+          onClick={toggleTheme}
+          title={`Theme: ${THEME_LABELS[theme]} (click to switch)`}
+          aria-label={`Switch theme, current: ${THEME_LABELS[theme]}`}
+        >
+          {THEME_ICONS[theme]}
+        </button>
+
         {currentUser ? (
           <>
-            <Link to={`/channel/${currentUser.username}`} className="profile-btn" title="Your Channel">
-              <img 
-                src={currentUser.avatar || 'https://i.pravatar.cc/150?img=11'} 
-                alt={currentUser.fullName || "User Avatar"} 
-                className="avatar" 
-                onError={(e) => { e.target.src = 'https://i.pravatar.cc/150?img=11'; }}
-              />
-            </Link>
-            <button onClick={handleLogout} className="icon-btn logout-btn" title="Logout">
-              <LogOut size={20} />
-              <span className="logout-label">Logout</span>
-            </button>
+            {/* Notifications */}
+            <div className="user-menu-wrapper" ref={notifRef}>
+              <button 
+                className={`icon-btn ${showNotifications ? 'active' : ''}`} 
+                aria-label="Notifications"
+                onClick={() => setShowNotifications(v => !v)}
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && <span className="notif-badge" style={{ fontSize: 0, width: 10, height: 10, padding: 0 }}></span>}
+              </button>
+              
+              {showNotifications && (
+                <div className="user-dropdown">
+                  <div className="user-dropdown-header">
+                    <h3 style={{ fontSize: 'var(--text-base)', fontWeight: 600 }}>Notifications</h3>
+                  </div>
+                  <div style={{ padding: '0', maxHeight: '300px', overflowY: 'auto' }}>
+                    <div style={{ padding: '16px', display: 'flex', gap: '12px', borderBottom: '1px solid var(--border-subtle)', background: unreadCount > 0 ? 'var(--color-primary-muted)' : 'transparent' }}>
+                      <div style={{ background: 'var(--color-primary)', color: 'white', width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Video size={18} />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                          <strong>Welcome to VTube!</strong> We're glad you're here. Discover amazing content.
+                        </span>
+                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-primary-light)' }}>Just now</span>
+                      </div>
+                    </div>
+                    {/* Add more fake notifications here if needed */}
+                  </div>
+                  {unreadCount > 0 && (
+                    <div className="user-dropdown-header" style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: 'none', justifyContent: 'center' }}>
+                      <button 
+                        onClick={() => setUnreadCount(0)}
+                        style={{ background: 'transparent', border: 'none', fontSize: 'var(--text-sm)', color: 'var(--text-primary-light)', cursor: 'pointer', fontWeight: 500 }}
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* User avatar + dropdown */}
+            <div className="user-menu-wrapper" ref={userMenuRef}>
+              <button
+                className="profile-btn"
+                onClick={() => setShowUserMenu(v => !v)}
+                aria-label="User menu"
+                aria-expanded={showUserMenu}
+              >
+                <img
+                  src={currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.fullName || 'U')}&background=2563eb&color=fff`}
+                  alt={currentUser.fullName || 'User Avatar'}
+                  onError={e => {
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.fullName || 'U')}&background=2563eb&color=fff`;
+                  }}
+                />
+              </button>
+
+              {showUserMenu && (
+                <div className="user-dropdown animate-fade-in-scale" role="menu">
+                  {/* Header */}
+                  <div className="user-dropdown-header">
+                    <img
+                      src={currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.fullName || 'U')}&background=2563eb&color=fff`}
+                      alt={currentUser.fullName}
+                      className="user-dropdown-avatar"
+                    />
+                    <div>
+                      <div className="user-dropdown-name">{currentUser.fullName}</div>
+                      <div className="user-dropdown-username">@{currentUser.username}</div>
+                    </div>
+                  </div>
+
+                  {/* Items */}
+                  <Link
+                    to={`/channel/${currentUser.username}`}
+                    className="user-dropdown-item"
+                    onClick={() => setShowUserMenu(false)}
+                    role="menuitem"
+                  >
+                    <User size={16} /> Your Channel
+                  </Link>
+                  <Link
+                    to="/dashboard"
+                    className="user-dropdown-item"
+                    onClick={() => setShowUserMenu(false)}
+                    role="menuitem"
+                  >
+                    <BarChart2 size={16} /> Dashboard
+                  </Link>
+                  <Link
+                    to="/settings"
+                    className="user-dropdown-item"
+                    onClick={() => setShowUserMenu(false)}
+                    role="menuitem"
+                  >
+                    <Settings size={16} /> Settings
+                  </Link>
+
+                  <div className="user-dropdown-divider" />
+
+                  <button
+                    className="user-dropdown-item danger"
+                    onClick={handleLogout}
+                    role="menuitem"
+                  >
+                    <LogOut size={16} /> Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         ) : (
-          <Link to="/login" className="login-btn">Log In</Link>
+          <Link to="/login" className="login-btn">Sign In</Link>
         )}
       </div>
-
-      <style>{`
-        .navbar {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 70px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 24px;
-          z-index: 100;
-        }
-
-        .nav-left, .nav-right {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-
-        .logo {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          text-decoration: none;
-          color: var(--text-primary);
-          font-size: 1.5rem;
-          font-weight: 700;
-          letter-spacing: -0.5px;
-        }
-
-        .logo-icon {
-          background: rgba(123, 44, 191, 0.15);
-          padding: 6px;
-          border-radius: var(--radius-md);
-        }
-
-        .icon-btn {
-          background: transparent;
-          border: none;
-          color: var(--text-primary);
-          cursor: pointer;
-          padding: 8px;
-          border-radius: var(--radius-full);
-          transition: background var(--transition-fast);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .icon-btn:hover {
-          background: var(--bg-tertiary);
-          color: var(--accent-secondary);
-        }
-
-        .logout-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 16px;
-          border-radius: var(--radius-full);
-          font-size: 0.9rem;
-          font-weight: 500;
-          color: var(--text-secondary);
-          border: 1px solid var(--glass-border);
-        }
-
-        .logout-btn:hover {
-          color: #ff4757;
-          border-color: rgba(255,71,87,0.4);
-          background: rgba(255,71,87,0.08);
-        }
-
-        .theme-btn {
-          margin-right: 8px;
-        }
-
-        .nav-center {
-          flex: 1;
-          max-width: 600px;
-          margin: 0 40px;
-        }
-
-        .search-container {
-          position: relative;
-          width: 100%;
-        }
-
-        .search-bar {
-          display: flex;
-          align-items: center;
-          background: var(--bg-primary);
-          border: 1px solid var(--glass-border);
-          border-radius: var(--radius-full);
-          padding: 4px 16px;
-          transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-        }
-
-        .search-bar:focus-within {
-          border-color: var(--accent-primary);
-          box-shadow: 0 0 15px rgba(123, 44, 191, 0.2);
-        }
-
-        .search-bar input {
-          flex: 1;
-          background: transparent;
-          border: none;
-          color: var(--text-primary);
-          padding: 8px;
-          font-size: 1rem;
-          outline: none;
-        }
-
-        .search-bar input::placeholder {
-          color: var(--text-secondary);
-        }
-
-        .search-suggestions {
-          position: absolute;
-          top: 110%;
-          left: 0;
-          right: 0;
-          border-radius: var(--radius-md);
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          z-index: 1000;
-        }
-
-        .suggestion-item {
-          padding: 12px 16px;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          cursor: pointer;
-          transition: background-color var(--transition-fast);
-          color: var(--text-primary);
-        }
-
-        .suggestion-item:hover {
-          background-color: var(--bg-tertiary);
-        }
-
-        .suggestion-icon {
-          color: var(--text-secondary);
-        }
-
-        .suggestion-text {
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .search-btn {
-          background: transparent;
-          border: none;
-          color: var(--text-secondary);
-          cursor: pointer;
-          padding: 4px;
-          transition: color var(--transition-fast);
-        }
-
-        .search-btn:hover {
-          color: var(--accent-primary);
-        }
-
-        .profile-btn {
-          cursor: pointer;
-          border-radius: var(--radius-full);
-          overflow: hidden;
-          width: 40px;
-          height: 40px;
-          border: 2px solid transparent;
-          transition: border-color var(--transition-fast);
-        }
-        
-        .profile-btn:hover {
-          border-color: var(--accent-secondary);
-        }
-
-        .avatar {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-      `}</style>
     </nav>
   );
 }

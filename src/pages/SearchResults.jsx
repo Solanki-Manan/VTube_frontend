@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { videoApi } from '../services/api';
 import SearchVideoCard from '../components/SearchVideoCard';
+import SearchSkeleton from '../components/skeletons/SearchSkeleton';
 import { Filter } from 'lucide-react';
 
 export default function SearchResults() {
@@ -16,6 +17,10 @@ export default function SearchResults() {
   const [sortBy, setSortBy] = useState('createdAt'); // 'createdAt' or 'views'
   const [sortType, setSortType] = useState('desc');
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    document.title = query ? `VTube — "${query}"` : 'VTube — Search';
+  }, [query]);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -67,17 +72,34 @@ export default function SearchResults() {
               </button>
             </div>
           </div>
+          <div className="filter-group">
+            <h4>Order</h4>
+            <div className="filter-options">
+              <button 
+                className={`filter-btn ${sortType === 'desc' ? 'active' : ''}`}
+                onClick={() => setSortType('desc')}
+              >
+                ↓ Newest / Most views first
+              </button>
+              <button 
+                className={`filter-btn ${sortType === 'asc' ? 'active' : ''}`}
+                onClick={() => setSortType('asc')}
+              >
+                ↑ Oldest / Least views first
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {loading ? (
-        <div className="loading-state">Loading results for "{query}"...</div>
+        <SearchSkeleton count={6} />
       ) : error ? (
-        <div className="error-state">{error}</div>
+        <div className="error-message" style={{ margin: '40px 0' }}>{error}</div>
       ) : videos.length === 0 ? (
         <div className="empty-state">
-          <h2>No results found</h2>
-          <p>Try different keywords or remove search filters</p>
+          <div className="empty-state-title">No results for "{query}"</div>
+          <p className="empty-state-desc">Try different keywords or remove search filters.</p>
         </div>
       ) : (
         <div className="results-list">

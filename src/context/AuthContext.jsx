@@ -26,6 +26,15 @@ export const AuthProvider = ({ children }) => {
     fetchUser();
   }, []);
 
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      console.log('Session expired. Logging out.');
+      setCurrentUser(null);
+    };
+    window.addEventListener('auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('auth-expired', handleAuthExpired);
+  }, []);
+
   const login = async (identifier, password) => {
     try {
       const isEmail = identifier.includes('@');
@@ -93,13 +102,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Call this after updating profile details so Navbar reflects changes immediately
+  const refreshUser = async () => {
+    try {
+      const response = await api.get('/users/current-user');
+      setCurrentUser(response.data.data);
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
+
   const value = {
     currentUser,
     loading,
     login,
     register,
     verifyEmail,
-    logout
+    logout,
+    refreshUser
   };
 
   return (

@@ -1,127 +1,99 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Upload as UploadIcon,
-  BarChart2,
-  Bell,
-  History,
-  PlaySquare,
-  ThumbsUp,
-  Settings as SettingsIcon,
-  Home
+  Home, Upload as UploadIcon, BarChart2,
+  History, PlaySquare, ThumbsUp, Settings,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar() {
+const NAV_GROUPS = [
+  {
+    label: 'Discover',
+    items: [
+      { to: '/',    icon: <Home size={18} />,        label: 'Home',          end: true },
+    ],
+  },
+  {
+    label: 'Creator',
+    items: [
+      { to: '/upload',     icon: <UploadIcon size={18} />, label: 'Upload' },
+      { to: '/dashboard',  icon: <BarChart2 size={18} />,  label: 'Dashboard' },
+    ],
+  },
+  {
+    label: 'Library',
+    items: [
+      { to: '/history',       icon: <History size={18} />,    label: 'History' },
+      { to: '/subscriptions', icon: <PlaySquare size={18} />, label: 'Subscriptions' },
+      { to: '/liked',         icon: <ThumbsUp size={18} />,   label: 'Liked Videos' },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { to: '/settings', icon: <Settings size={18} />, label: 'Settings' },
+    ],
+  },
+];
+
+export default function Sidebar({ collapsed, onToggleCollapse }) {
   const { currentUser } = useAuth();
 
-  if (!currentUser) return null;
+  const avatarSrc = currentUser?.avatar ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.fullName || 'U')}&background=2563eb&color=fff`;
 
-  const navItems = [
-    { to: '/', icon: <Home size={20} />, label: 'Home' },
-    { to: '/upload', icon: <UploadIcon size={20} />, label: 'Upload' },
-    { to: '/dashboard', icon: <BarChart2 size={20} />, label: 'Dashboard' },
-    { to: '/history', icon: <History size={20} />, label: 'History' },
-    { to: '/subscriptions', icon: <PlaySquare size={20} />, label: 'Subscriptions' },
-    { to: '/liked', icon: <ThumbsUp size={20} />, label: 'Liked' },
-    { to: '/settings', icon: <SettingsIcon size={20} />, label: 'Settings' },
-  ];
+  // Filter groups: if not logged in, only show the "Discover" group
+  const visibleGroups = currentUser 
+    ? NAV_GROUPS 
+    : NAV_GROUPS.filter(g => g.label === 'Discover');
 
   return (
-    <aside className="sidebar glass">
-      <nav className="sidebar-nav">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              `sidebar-item ${isActive ? 'active' : ''}`
-            }
-          >
-            <span className="sidebar-icon">{item.icon}</span>
-            <span className="sidebar-label">{item.label}</span>
-          </NavLink>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Main navigation">
+      {/* ── Mini Profile ── */}
+      {currentUser && (
+        <NavLink to={`/channel/${currentUser.username}`} className="sidebar-profile" title={currentUser.fullName}>
+          <img src={avatarSrc} alt={currentUser.fullName} className="sidebar-profile-avatar" />
+          <div className="sidebar-profile-info">
+            <div className="sidebar-profile-name">{currentUser.fullName}</div>
+            <div className="sidebar-profile-handle">@{currentUser.username}</div>
+          </div>
+        </NavLink>
+      )}
+
+      {/* ── Nav Groups ── */}
+      <nav className="sidebar-nav" aria-label="Site navigation">
+        {visibleGroups.map(group => (
+          <div key={group.label}>
+            <div className="sidebar-group-label">{group.label}</div>
+            {group.items.map(item => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => `sidebar-item${isActive ? ' active' : ''}`}
+                title={collapsed ? item.label : undefined}
+              >
+                <span className="sidebar-icon" aria-hidden="true">{item.icon}</span>
+                <span className="sidebar-label">{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
 
-      <style>{`
-        .sidebar {
-          position: fixed;
-          top: 70px;
-          left: 0;
-          bottom: 0;
-          width: 200px;
-          padding: 16px 12px;
-          z-index: 90;
-          display: flex;
-          flex-direction: column;
-          border-right: 1px solid var(--glass-border);
-          border-top: none;
-          border-left: none;
-          border-bottom: none;
-          border-radius: 0;
-          overflow-y: auto;
-        }
-
-        .sidebar-nav {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .sidebar-item {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 12px 16px;
-          border-radius: var(--radius-md);
-          text-decoration: none;
-          color: var(--text-secondary);
-          font-size: 0.95rem;
-          font-weight: 500;
-          transition: all var(--transition-fast);
-        }
-
-        .sidebar-item:hover {
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
-        }
-
-        .sidebar-item.active {
-          background: rgba(123, 44, 191, 0.15);
-          color: var(--accent-secondary);
-          border: 1px solid rgba(123, 44, 191, 0.2);
-        }
-
-        .sidebar-item.active .sidebar-icon {
-          color: var(--accent-primary);
-        }
-
-        .sidebar-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .sidebar-label {
-          white-space: nowrap;
-        }
-
-        @media (max-width: 768px) {
-          .sidebar {
-            width: 60px;
-          }
-          .sidebar-label {
-            display: none;
-          }
-          .sidebar-item {
-            justify-content: center;
-            padding: 12px;
-          }
-        }
-      `}</style>
+      {/* ── Collapse Toggle ── */}
+      <button
+        className="sidebar-collapse-btn"
+        onClick={onToggleCollapse}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        <span className="sidebar-icon" aria-hidden="true">
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </span>
+        <span>{collapsed ? '' : 'Collapse'}</span>
+      </button>
     </aside>
   );
 }

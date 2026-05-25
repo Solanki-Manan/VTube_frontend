@@ -71,7 +71,7 @@ export default function Login() {
       <div className="auth-card glass animate-fade-in">
         <div className="auth-header">
           <div className="logo-icon-large">
-            <Video size={36} color="var(--accent-primary)" />
+            <Video size={36} color="var(--color-primary)" />
           </div>
           <h2>{step === 1 ? 'Welcome Back to VTube' : 'Verify Your Email'}</h2>
           <p>{step === 1 ? 'Enter your credentials to continue' : 'Your account is unverified. Please enter your OTP.'}</p>
@@ -182,7 +182,7 @@ export default function Login() {
         }
 
         .logo-icon-large {
-          background: rgba(123, 44, 191, 0.15);
+          background: var(--color-primary-muted);
           padding: 16px;
           border-radius: var(--radius-lg);
           margin-bottom: 8px;
@@ -239,8 +239,8 @@ export default function Login() {
         }
 
         .input-wrapper input:focus {
-          border-color: var(--accent-primary);
-          box-shadow: 0 0 0 2px rgba(123, 44, 191, 0.2);
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 2px var(--color-primary-muted);
           outline: none;
         }
 
@@ -251,7 +251,7 @@ export default function Login() {
         }
 
         .forgot-password-link a {
-          color: var(--accent-primary);
+          color: var(--color-primary);
           font-size: 0.85rem;
           text-decoration: none;
           font-weight: 500;
@@ -259,13 +259,13 @@ export default function Login() {
         }
 
         .forgot-password-link a:hover {
-          color: var(--accent-secondary);
+          color: var(--color-primary-light);
         }
 
         .primary-btn {
           width: 100%;
           padding: 14px;
-          background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+          background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
           color: white;
           border: none;
           border-radius: var(--radius-md);
@@ -277,7 +277,7 @@ export default function Login() {
 
         .primary-btn:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 15px var(--accent-glow);
+          box-shadow: 0 4px 15px var(--color-primary-glow);
         }
 
         .resend-btn {
@@ -297,8 +297,8 @@ export default function Login() {
         }
 
         .resend-btn:hover:not(:disabled) {
-          border-color: var(--accent-primary);
-          color: var(--accent-primary);
+          border-color: var(--color-primary);
+          color: var(--color-primary);
         }
 
         .resend-btn:disabled {
@@ -323,7 +323,7 @@ export default function Login() {
         }
 
         .auth-link {
-          color: var(--accent-secondary);
+          color: var(--color-primary-light);
           text-decoration: none;
           font-weight: 600;
         }

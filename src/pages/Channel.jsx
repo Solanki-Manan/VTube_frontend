@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { userApi, interactionApi, videoApi, playlistApi, subscriptionApi, tweetApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import VideoCard from '../components/VideoCard';
 import TweetCard from '../components/TweetCard';
+import ChannelSkeleton from '../components/skeletons/ChannelSkeleton';
 import { Users, X, ListVideo, Plus, Send } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Channel() {
   const { username } = useParams();
   const { currentUser } = useAuth();
+  const toast = useToast();
   
   const [profile, setProfile] = useState(null);
   const [videos, setVideos] = useState([]);
@@ -41,6 +44,10 @@ export default function Channel() {
   // Community Tab State
   const [newTweetContent, setNewTweetContent] = useState("");
   const [tweetLoading, setTweetLoading] = useState(false);
+
+  useEffect(() => {
+    document.title = profile ? `${profile.fullName} — VTube` : 'VTube — Channel';
+  }, [profile]);
 
   useEffect(() => {
     const fetchChannelData = async () => {
@@ -77,7 +84,7 @@ export default function Channel() {
 
       } catch (err) {
         console.error("Failed to fetch channel", err);
-        setError(`Error: ${err.response?.data?.message || err.message || JSON.stringify(err)}`);
+        setError(err.response?.data?.message || err.message || 'Failed to load channel.');
       } finally {
         setLoading(false);
       }
@@ -87,14 +94,14 @@ export default function Channel() {
   }, [username]);
 
   const handleSubscribe = async () => {
-    if (!currentUser) return alert('Please log in to subscribe');
+    if (!currentUser) { navigate('/login'); return; }
     try {
       await subscriptionApi.toggleSubscription(profile._id);
       setIsSubscribed(!isSubscribed);
       setSubscribersCount(prev => isSubscribed ? prev - 1 : prev + 1);
+      toast.success(isSubscribed ? 'Unsubscribed.' : 'Subscribed!');
     } catch (err) {
-      console.error("Failed to toggle subscription", err);
-      alert(err.response?.data?.message || "Failed to subscribe");
+      toast.error(err.response?.data?.message || 'Failed to update subscription.');
     }
   };
 
@@ -111,23 +118,24 @@ export default function Channel() {
     e.preventDefault();
     try {
       await videoApi.updateVideo(editingVideo._id, editTitle, editDescription);
-      setVideos(videos.map(v => 
+      setVideos(videos.map(v =>
         v._id === editingVideo._id ? { ...v, title: editTitle, description: editDescription } : v
       ));
       setEditingVideo(null);
+      toast.success('Video updated successfully!');
     } catch (err) {
-      alert("Failed to update video: " + (err.response?.data?.message || err.message));
+      toast.error('Failed to update video: ' + (err.response?.data?.message || err.message));
     }
   };
 
   const handleDeleteVideo = async (videoId) => {
-    if (window.confirm("Are you sure you want to completely delete this video? This action cannot be undone.")) {
-      try {
-        await videoApi.deleteVideo(videoId);
-        setVideos(videos.filter(v => v._id !== videoId));
-      } catch (err) {
-        alert("Failed to delete video: " + (err.response?.data?.message || err.message));
-      }
+    if (!window.confirm('Are you sure you want to delete this video? This action cannot be undone.')) return;
+    try {
+      await videoApi.deleteVideo(videoId);
+      setVideos(videos.filter(v => v._id !== videoId));
+      toast.success('Video deleted.');
+    } catch (err) {
+      toast.error('Failed to delete video: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -158,8 +166,9 @@ export default function Channel() {
       setNewPlaylistName('');
       setNewPlaylistDesc('');
       await fetchUserPlaylistsForModal();
+      toast.success('Playlist created!');
     } catch (err) {
-      alert("Failed to create playlist: " + (err.response?.data?.message || err.message));
+      toast.error('Failed to create playlist: ' + (err.response?.data?.message || err.message));
       setPlaylistModalLoading(false);
     }
   };
@@ -168,16 +177,16 @@ export default function Channel() {
     try {
       if (isInPlaylist) {
         await playlistApi.removeVideoFromPlaylist(playlistId, playlistTargetVideoId);
-        alert(`Video removed from ${playlistName}`);
+        toast.info(`Removed from "${playlistName}"`);
       } else {
         await playlistApi.addVideoToPlaylist(playlistId, playlistTargetVideoId);
-        alert(`Video added to ${playlistName} successfully!`);
+        toast.success(`Added to "${playlistName}"!`);
       }
       setUserPlaylists(prev => prev.map(pl => {
         if (pl._id === playlistId) {
           return {
             ...pl,
-            videos: isInPlaylist 
+            videos: isInPlaylist
               ? pl.videos.filter(v => v !== playlistTargetVideoId && v._id !== playlistTargetVideoId)
               : [...pl.videos, playlistTargetVideoId]
           };
@@ -185,7 +194,7 @@ export default function Channel() {
         return pl;
       }));
     } catch (err) {
-      alert("Failed to update playlist: " + (err.response?.data?.message || err.message));
+      toast.error('Failed to update playlist: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -196,11 +205,11 @@ export default function Channel() {
       setTweetLoading(true);
       await tweetApi.createTweet(newTweetContent);
       setNewTweetContent("");
-      // Refresh tweets
       const tData = await tweetApi.getUserTweets(profile._id);
       setTweets(tData.data?.tweets || []);
+      toast.success('Post published!');
     } catch (err) {
-      alert("Failed to post tweet: " + (err.response?.data?.message || err.message));
+      toast.error('Failed to post: ' + (err.response?.data?.message || err.message));
     } finally {
       setTweetLoading(false);
     }
@@ -217,8 +226,12 @@ export default function Channel() {
     }
   };
 
-  if (loading) return <div style={{ textAlign: 'center', padding: '100px 0' }}>Loading Channel...</div>;
-  if (error) return <div style={{ textAlign: 'center', padding: '100px 0', color: 'red' }}>{error}</div>;
+  if (loading) return <ChannelSkeleton />;
+  if (error) return (
+    <div className="error-state" style={{ padding: 60 }}>
+      <div className="error-message">{error}</div>
+    </div>
+  );
   if (!profile) return null;
 
   return (

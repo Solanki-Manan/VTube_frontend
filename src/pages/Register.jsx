@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Video, Mail, Lock, User, Image as ImageIcon } from 'lucide-react';
+import { Video, Mail, Lock, User, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { userApi } from '../services/api';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -16,9 +17,12 @@ export default function Register() {
   const [step, setStep] = useState(1);
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
-  
+  const [successMsg, setSuccessMsg] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+
   const navigate = useNavigate();
-  const { register, verifyEmail } = useAuth();
+  const { register, login } = useAuth();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -30,7 +34,9 @@ export default function Register() {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return; // Prevent double-submit
     setError('');
+    setSubmitting(true);
     
     try {
       const data = new FormData();
@@ -39,20 +45,62 @@ export default function Register() {
       });
       
       await register(data);
-      setStep(2); // Move to OTP
+      setStep(2); // Move to OTP step
+      setSuccessMsg(`OTP sent to ${formData.email}! Check your inbox.`);
     } catch (err) {
-      setError(err);
+      const msg = typeof err === 'string' ? err : err?.message || 'Registration failed. Please try again.';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleOtpSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
+    setSuccessMsg('');
+    setSubmitting(true);
     try {
-      await verifyEmail(formData.email, otp);
-      navigate('/login');
+      // Step 1: Verify the email OTP
+      const verifyRes = await fetch(`${import.meta.env.MODE === 'production' ? 'https://project-yt-lu42.onrender.com/api/v1' : 'http://localhost:8000/api/v1'}/users/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: formData.email, otp }),
+      });
+      const verifyData = await verifyRes.json();
+      
+      if (!verifyRes.ok) {
+        throw new Error(verifyData.message || 'Invalid OTP. Please try again.');
+      }
+
+      // Step 2: Auto-login the user so they land on homepage seamlessly
+      try {
+        await login(formData.email, formData.password);
+        navigate('/'); // Go straight to home — no need to login again!
+      } catch {
+        // If auto-login fails for some reason, redirect to login page
+        navigate('/login');
+      }
     } catch (err) {
-      setError(err);
+      setError(err.message || 'OTP verification failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setResendLoading(true);
+    setError('');
+    setSuccessMsg('');
+    try {
+      await userApi.resendVerificationOtp(formData.email);
+      setSuccessMsg('New OTP sent! Check your email.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend OTP.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -61,13 +109,14 @@ export default function Register() {
       <div className="auth-card glass animate-fade-in">
         <div className="auth-header">
           <div className="logo-icon-large">
-            <Video size={36} color="var(--accent-primary)" />
+            <Video size={36} color="var(--color-primary)" />
           </div>
           <h2>{step === 1 ? 'Create an Account' : 'Verify Your Email'}</h2>
           <p>{step === 1 ? 'Join VTube and start sharing!' : `We sent an OTP to ${formData.email}`}</p>
         </div>
 
         {error && <div className="error-message">{error}</div>}
+        {successMsg && <div className="success-msg">{successMsg}</div>}
 
         {step === 1 ? (
           <form onSubmit={handleRegisterSubmit} className="auth-form" encType="multipart/form-data">
@@ -123,7 +172,9 @@ export default function Register() {
             </div>
 
             <div className="auth-actions">
-              <button type="submit" className="primary-btn">Sign Up & Send OTP</button>
+              <button type="submit" className="primary-btn" disabled={submitting}>
+                {submitting ? 'Creating Account...' : 'Sign Up & Send OTP'}
+              </button>
             </div>
           </form>
         ) : (
@@ -135,10 +186,22 @@ export default function Register() {
                 <input type="text" name="otp" placeholder="Enter 6-digit OTP" value={otp} onChange={(e) => setOtp(e.target.value)} required maxLength="6" />
               </div>
             </div>
-            
+
             <div className="auth-actions">
-              <button type="submit" className="primary-btn">Verify Email</button>
+              <button type="submit" className="primary-btn" disabled={submitting}>
+                {submitting ? 'Verifying...' : 'Verify Email'}
+              </button>
             </div>
+
+            <button
+              type="button"
+              className="resend-btn"
+              onClick={handleResendOtp}
+              disabled={resendLoading}
+            >
+              <RefreshCw size={16} />
+              {resendLoading ? 'Sending...' : 'Resend OTP'}
+            </button>
           </form>
         )}
 
@@ -178,7 +241,7 @@ export default function Register() {
         }
 
         .logo-icon-large {
-          background: rgba(123, 44, 191, 0.15);
+          background: var(--color-primary-muted);
           padding: 16px;
           border-radius: var(--radius-lg);
           margin-bottom: 8px;
@@ -245,7 +308,7 @@ export default function Register() {
 
         .input-wrapper input:focus {
           outline: none;
-          border-color: var(--accent-primary);
+          border-color: var(--color-primary);
           box-shadow: 0 0 0 2px rgba(123, 44, 191, 0.2);
         }
         
@@ -272,14 +335,14 @@ export default function Register() {
         }
 
         .file-input-wrapper input::file-selector-button:hover {
-          background: var(--accent-primary);
-          border-color: var(--accent-primary);
+          background: var(--color-primary);
+          border-color: var(--color-primary);
         }
 
         .primary-btn {
           width: 100%;
           padding: 14px;
-          background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+          background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
           color: white;
           border: none;
           border-radius: var(--radius-md);
@@ -289,9 +352,52 @@ export default function Register() {
           transition: transform var(--transition-fast), box-shadow var(--transition-fast);
         }
 
-        .primary-btn:hover {
+        .primary-btn:hover:not(:disabled) {
           transform: translateY(-2px);
-          box-shadow: 0 4px 15px var(--accent-glow);
+          box-shadow: 0 4px 15px var(--color-primary-glow);
+        }
+
+        .primary-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none !important;
+        }
+
+        .resend-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px;
+          background: transparent;
+          border: 1px solid var(--glass-border);
+          border-radius: var(--radius-md);
+          color: var(--text-secondary);
+          font-size: 0.9rem;
+          cursor: pointer;
+          transition: all var(--transition-fast);
+          margin-top: 4px;
+        }
+
+        .resend-btn:hover:not(:disabled) {
+          border-color: var(--color-primary);
+          color: var(--color-primary);
+        }
+
+        .resend-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .success-msg {
+          background: var(--color-success-bg);
+          color: var(--color-success);
+          padding: 10px 14px;
+          border-radius: var(--radius-sm);
+          font-size: 0.9rem;
+          border: 1px solid var(--color-success-border);
+          text-align: center;
         }
 
         .auth-footer {
@@ -301,7 +407,7 @@ export default function Register() {
         }
 
         .auth-link {
-          color: var(--accent-secondary);
+          color: var(--color-primary-light);
           text-decoration: none;
           font-weight: 600;
         }

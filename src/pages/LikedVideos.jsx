@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { interactionApi } from '../services/api';
 import VideoCard from '../components/VideoCard';
+import VideoSkeleton from '../components/VideoSkeleton';
 import { ThumbsUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -10,6 +11,8 @@ export default function LikedVideos() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => { document.title = 'VTube — Liked Videos'; }, []);
 
   useEffect(() => {
     const fetchLikedVideos = async () => {
@@ -41,9 +44,11 @@ export default function LikedVideos() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '100px 0', color: 'var(--text-secondary)' }}>Loading liked videos...</div>
+        <div className="video-grid">
+          {[...Array(8)].map((_, i) => <VideoSkeleton key={i} />)}
+        </div>
       ) : error ? (
-        <div style={{ textAlign: 'center', padding: '100px 0', color: 'red' }}>{error}</div>
+        <div className="error-message">{error}</div>
       ) : videos.length === 0 ? (
         <div className="empty-liked glass">
           <ThumbsUp size={64} color="var(--text-secondary)" opacity={0.5} />
@@ -91,7 +96,7 @@ export default function LikedVideos() {
         .header-icon {
           width: 64px;
           height: 64px;
-          background: rgba(123, 44, 191, 0.1);
+          background: var(--color-primary-muted);
           border-radius: 50%;
           display: flex;
           align-items: center;

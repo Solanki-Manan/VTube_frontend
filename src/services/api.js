@@ -43,6 +43,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // If refresh fails, user is completely logged out
+        window.dispatchEvent(new Event('auth-expired'));
         return Promise.reject(refreshError);
       }
     }

@@ -49,10 +49,15 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
     : NAV_GROUPS.filter(g => g.label === 'Discover');
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Main navigation">
+    <aside className={`sidebar ${collapsed ? 'collapsed' : 'mobile-open'}`} aria-label="Main navigation">
       {/* ── Mini Profile ── */}
       {currentUser && (
-        <NavLink to={`/channel/${currentUser.username}`} className="sidebar-profile" title={currentUser.fullName}>
+        <NavLink 
+          to={`/channel/${currentUser.username}`} 
+          className="sidebar-profile" 
+          title={currentUser.fullName}
+          onClick={() => { if (window.innerWidth <= 768) onToggleCollapse(); }}
+        >
           <img src={avatarSrc} alt={currentUser.fullName} className="sidebar-profile-avatar" />
           <div className="sidebar-profile-info">
             <div className="sidebar-profile-name">{currentUser.fullName}</div>
@@ -73,6 +78,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
                 end={item.end}
                 className={({ isActive }) => `sidebar-item${isActive ? ' active' : ''}`}
                 title={collapsed ? item.label : undefined}
+                onClick={() => { if (window.innerWidth <= 768) onToggleCollapse(); }}
               >
                 <span className="sidebar-icon" aria-hidden="true">{item.icon}</span>
                 <span className="sidebar-label">{item.label}</span>

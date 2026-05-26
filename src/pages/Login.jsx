@@ -331,6 +331,16 @@ export default function Login() {
         .auth-link:hover {
           text-decoration: underline;
         }
+        
+        @media (max-width: 480px) {
+          .auth-card {
+            padding: 24px;
+            gap: 24px;
+          }
+          .auth-header h2 {
+            font-size: 1.5rem;
+          }
+        }
       `}</style>
     </div>
   );

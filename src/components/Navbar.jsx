@@ -67,6 +67,7 @@ export default function Navbar({ onToggleSidebar, showHamburger }) {
   const handleSuggestionClick = (title) => {
     setSearchQuery(title);
     setShowSuggestions(false);
+    setShowMobileSearch(false);
     navigate(`/results?search_query=${encodeURIComponent(title)}`);
   };
 
@@ -77,9 +78,9 @@ export default function Navbar({ onToggleSidebar, showHamburger }) {
   };
 
   return (
-    <nav className="navbar glass" role="banner">
+    <nav className={`navbar glass ${showMobileSearch ? 'mobile-search-active' : ''}`} role="banner">
       {/* ─── Left ─── */}
-      <div className="nav-left">
+      <div className={`nav-left ${showMobileSearch ? 'hidden' : ''}`}>
         {showHamburger && (
           <button
             className="icon-btn"
@@ -97,9 +98,18 @@ export default function Navbar({ onToggleSidebar, showHamburger }) {
         </Link>
       </div>
 
-      {/* ─── Center Search (desktop) ─── */}
-      <div className="nav-center" ref={searchRef}>
+      {/* ─── Center Search ─── */}
+      <div className={`nav-center ${showMobileSearch ? 'active' : ''}`} ref={searchRef}>
         <div className="search-container">
+          {showMobileSearch && (
+            <button 
+              type="button" 
+              className="icon-btn mobile-search-back" 
+              onClick={() => setShowMobileSearch(false)}
+            >
+              <ChevronDown size={20} style={{ transform: 'rotate(90deg)' }} />
+            </button>
+          )}
           <form onSubmit={handleSearch} className="search-bar" role="search">
             <input
               type="search"
@@ -134,13 +144,12 @@ export default function Navbar({ onToggleSidebar, showHamburger }) {
       </div>
 
       {/* ─── Right ─── */}
-      <div className="nav-right">
+      <div className={`nav-right ${showMobileSearch ? 'hidden' : ''}`}>
         {/* Mobile search toggle */}
         <button
           className="icon-btn mobile-search-btn"
-          onClick={() => setShowMobileSearch(v => !v)}
+          onClick={() => setShowMobileSearch(true)}
           aria-label="Search"
-          style={{ display: 'none' }}
         >
           <Search size={20} />
         </button>
@@ -185,7 +194,6 @@ export default function Navbar({ onToggleSidebar, showHamburger }) {
                         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-primary-light)' }}>Just now</span>
                       </div>
                     </div>
-                    {/* Add more fake notifications here if needed */}
                   </div>
                   {unreadCount > 0 && (
                     <div className="user-dropdown-header" style={{ borderTop: '1px solid var(--border-subtle)', borderBottom: 'none', justifyContent: 'center' }}>

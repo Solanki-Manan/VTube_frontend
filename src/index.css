@@ -674,6 +674,43 @@ body {
   border-color: var(--color-error-border);
   background: var(--color-error-bg);
 }
+/* --- Mobile Navbar Responsive Logic --- */
+.mobile-search-btn { display: none; }
+.mobile-search-back { display: none; margin-right: var(--space-2); }
+
+@media (max-width: 768px) {
+  .nav-center { display: none; }
+  .mobile-search-btn { display: flex; }
+  
+  .navbar.mobile-search-active .nav-left,
+  .navbar.mobile-search-active .nav-right { display: none !important; }
+  
+  .navbar.mobile-search-active .nav-center {
+    display: flex;
+    flex: 1;
+    margin: 0;
+    max-width: none;
+    align-items: center;
+  }
+  
+  .navbar.mobile-search-active .search-container {
+    display: flex;
+    flex: 1;
+    align-items: center;
+  }
+  
+  .navbar.mobile-search-active .mobile-search-back {
+    display: flex;
+  }
+  
+  .navbar.mobile-search-active .search-bar {
+    flex: 1;
+  }
+  
+  /* Ensure profile/login buttons have space on mobile */
+  .nav-right { gap: var(--space-1); }
+  .login-btn { padding: 6px 14px; font-size: var(--text-xs); }
+}
 
 /* ─── 12. SIDEBAR ──────────────────────────────────────────── */
 .sidebar {
@@ -974,7 +1011,7 @@ body {
 /* ─── 14. VIDEO GRID (shared) ──────────────────────────────── */
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: var(--space-6);
 }
 

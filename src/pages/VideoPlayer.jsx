@@ -447,6 +447,20 @@ export default function VideoPlayer() {
           .player-container { flex-direction: column; }
           .secondary-column { width: 100%; }
         }
+        @media (max-width: 768px) {
+          .player-container { padding: 12px; gap: 16px; }
+          .video-wrapper { 
+            margin-left: -12px; 
+            margin-right: -12px; 
+            width: calc(100% + 24px); 
+            border-radius: 0; 
+            margin-top: -12px; 
+            margin-bottom: 12px;
+          }
+          .vp-title { font-size: var(--text-lg); margin-bottom: 10px; }
+          .vp-meta-row { gap: 12px; margin-bottom: 14px; }
+          .vp-actions { width: 100%; justify-content: space-between; overflow-x: auto; padding-bottom: 4px; }
+        }
       `}</style>
     </div>
   );

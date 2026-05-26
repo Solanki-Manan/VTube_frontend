@@ -44,10 +44,23 @@ function AppLayout() {
   const { currentUser, loading } = useAuth();
   const location = useLocation();
 
-  // Sidebar collapse state (persisted in localStorage)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem('vtube-sidebar-collapsed') === 'true'
-  );
+  // Sidebar collapse state (persisted in localStorage or auto-collapsed on tablet)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const isTablet = window.innerWidth < 1024;
+    const stored = localStorage.getItem('vtube-sidebar-collapsed');
+    if (isTablet) return true;
+    return stored === 'true';
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setSidebarCollapsed(true);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {

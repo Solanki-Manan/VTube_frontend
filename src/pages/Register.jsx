@@ -422,6 +422,16 @@ export default function Register() {
             gap: 20px;
           }
         }
+        
+        @media (max-width: 480px) {
+          .auth-card {
+            padding: 24px;
+            gap: 24px;
+          }
+          .auth-header h2 {
+            font-size: 1.5rem;
+          }
+        }
       `}</style>
     </div>
   );

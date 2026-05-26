@@ -113,6 +113,14 @@ export const interactionApi = {
   toggleCommentLike: async (commentId) => {
     const response = await api.post(`/likes/togglecommentlike/${commentId}`);
     return response.data;
+  },
+  toggleVideoDislike: async (videoId) => {
+    const response = await api.post(`/likes/togglevideodislike/${videoId}`);
+    return response.data;
+  },
+  getVideoDislikeStatus: async (videoId) => {
+    const response = await api.get(`/likes/dislikestatus/${videoId}`);
+    return response.data;
   }
 };
 

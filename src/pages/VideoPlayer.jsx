@@ -17,8 +17,11 @@ export default function VideoPlayer() {
   const [video, setVideo]           = useState(null);
   const [suggested, setSuggested]   = useState([]);
   const [loading, setLoading]       = useState(true);
+  const [viewCount, setViewCount]   = useState(0);
   const [likes, setLikes]           = useState(0);
   const [isLiked, setIsLiked]       = useState(false);
+  const [isDisliked, setIsDisliked] = useState(false);
+  const [dislikes, setDislikes]     = useState(0);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscribersCount, setSubscribersCount] = useState(0);
 
@@ -42,6 +45,8 @@ export default function VideoPlayer() {
         ]);
         const v = vRes.data;
         setVideo(v);
+        // The backend already returns the incremented view count in the response
+        setViewCount(v?.views || 0);
         // Use video title as search query for related/suggested videos
         const titleQuery = v?.title ? v.title.split(' ').slice(0, 3).join(' ') : '';
         const suggestedRes = await videoApi.getVideos(1, 15, titleQuery);
@@ -54,6 +59,13 @@ export default function VideoPlayer() {
         const lRes = await interactionApi.getVideoLikes(videoId);
         setLikes(lRes.data?.totalLikes || 0);
         setIsLiked(lRes.data?.isLiked || false);
+
+        // Fetch dislike status + count (optional auth — won't throw)
+        try {
+          const dRes = await interactionApi.getVideoDislikeStatus(videoId);
+          setIsDisliked(dRes.data?.isDisliked || false);
+          setDislikes(dRes.data?.totalDislikes || 0);
+        } catch { /* ignore */ }
 
         const channelUsername = v?.owner?.username || v?.ownerDetails?.username;
         if (channelUsername) {
@@ -74,12 +86,31 @@ export default function VideoPlayer() {
   const handleLike = async () => {
     if (!currentUser) return navigate('/login');
     try {
-      // Capture current state BEFORE toggling to avoid stale closure bug
       const currentlyLiked = isLiked;
       await interactionApi.toggleVideoLike(videoId);
       setIsLiked(!currentlyLiked);
       setLikes(v => currentlyLiked ? v - 1 : v + 1);
+      // If liking while disliked, remove dislike optimistically
+      if (!currentlyLiked && isDisliked) {
+        setIsDisliked(false);
+        setDislikes(v => Math.max(0, v - 1));
+      }
     } catch { toast.error('Could not update like.'); }
+  };
+
+  const handleDislike = async () => {
+    if (!currentUser) return navigate('/login');
+    try {
+      const currentlyDisliked = isDisliked;
+      await interactionApi.toggleVideoDislike(videoId);
+      setIsDisliked(!currentlyDisliked);
+      setDislikes(v => currentlyDisliked ? Math.max(0, v - 1) : v + 1);
+      // If disliking while liked, remove the like optimistically
+      if (!currentlyDisliked && isLiked) {
+        setIsLiked(false);
+        setLikes(v => Math.max(0, v - 1));
+      }
+    } catch { toast.error('Could not update dislike.'); }
   };
 
   const handleSubscribe = async () => {
@@ -189,6 +220,11 @@ export default function VideoPlayer() {
         </div>
 
         <h1 className="vp-title">{video.title}</h1>
+        <div className="vp-view-date">
+          <span>{formatViews(viewCount)} views</span>
+          <span className="vp-dot">·</span>
+          <span>{formatTimeAgo(video.createdAt)}</span>
+        </div>
 
         <div className="vp-meta-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -224,8 +260,13 @@ export default function VideoPlayer() {
                 <span>{likes}</span>
               </button>
               <div className="vp-divider" />
-              <button className="vp-action-btn" aria-label="Dislike video">
-                <ThumbsDown size={18} />
+              <button
+                className={`vp-action-btn ${isDisliked ? 'active dislike-active' : ''}`}
+                onClick={handleDislike}
+                aria-label={isDisliked ? 'Remove dislike' : 'Dislike video'}
+              >
+                <ThumbsDown size={18} fill={isDisliked ? 'currentColor' : 'none'} />
+                <span>{dislikes}</span>
               </button>
             </div>
 
@@ -353,12 +394,20 @@ export default function VideoPlayer() {
         }
         .video-element { width: 100%; height: 100%; outline: none; }
         .vp-title {
-          font-size: var(--text-2xl);
+          font-size: var(--text-xl);
           font-weight: var(--font-bold);
-          color: var(--text-primary);
-          margin-bottom: 14px;
-          line-height: var(--leading-snug);
+          line-height: 1.4;
+          margin-bottom: 8px;
         }
+        .vp-view-date {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: var(--text-sm);
+          color: var(--text-secondary);
+          margin-bottom: 14px;
+        }
+        .vp-dot { color: var(--text-muted); }
         .vp-meta-row {
           display: flex;
           justify-content: space-between;
@@ -397,6 +446,7 @@ export default function VideoPlayer() {
         }
         .vp-action-btn:hover { background: rgba(255,255,255,0.08); }
         .vp-action-btn.active { color: var(--color-primary-light); }
+        .vp-action-btn.dislike-active { color: var(--color-error); }
         .vp-divider { width: 1px; height: 24px; background: var(--border-default); }
         .vp-pill-btn { border-radius: var(--radius-full); padding: 9px 18px; }
         .vp-description {

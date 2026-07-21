@@ -72,6 +72,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const googleLogin = async (idToken) => {
+    try {
+      const response = await api.post('/users/google-login', { idToken });
+      setCurrentUser(response.data.data.user);
+      return response.data;
+    } catch (error) {
+      console.error('Google Login API Error:', error);
+      throw error.response?.data?.message || 'Google login failed';
+    }
+  };
+
   const register = async (formData) => {
     try {
       const response = await api.post('/users/register', formData, {
@@ -116,6 +127,7 @@ export const AuthProvider = ({ children }) => {
     currentUser,
     loading,
     login,
+    googleLogin,
     register,
     verifyEmail,
     logout,

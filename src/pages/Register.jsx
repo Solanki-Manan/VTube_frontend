@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Video, Mail, Lock, User, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { userApi } from '../services/api';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -22,7 +23,7 @@ export default function Register() {
   const [resendLoading, setResendLoading] = useState(false);
 
   const navigate = useNavigate();
-  const { register, login } = useAuth();
+  const { register, login, googleLogin } = useAuth();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -104,6 +105,20 @@ export default function Register() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    try {
+      await googleLogin(credentialResponse.credential);
+      navigate('/');
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google Sign-In failed. Please try again.');
+  };
+
   return (
     <div className="auth-container">
       <div className="auth-card glass animate-fade-in">
@@ -119,7 +134,20 @@ export default function Register() {
         {successMsg && <div className="success-msg">{successMsg}</div>}
 
         {step === 1 ? (
-          <form onSubmit={handleRegisterSubmit} className="auth-form" encType="multipart/form-data">
+          <>
+            <div className="google-auth-wrapper">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap
+              />
+            </div>
+            
+            <div className="divider">
+              <span>OR REGISTER WITH EMAIL</span>
+            </div>
+
+            <form onSubmit={handleRegisterSubmit} className="auth-form" encType="multipart/form-data">
             <div className="input-row">
               <div className="input-group">
                 <label>Full Name *</label>
@@ -177,6 +205,7 @@ export default function Register() {
               </button>
             </div>
           </form>
+          </>
         ) : (
           <form onSubmit={handleOtpSubmit} className="auth-form">
             <div className="input-group">
@@ -254,6 +283,32 @@ export default function Register() {
 
         .auth-header p {
           color: var(--text-secondary);
+        }
+
+        .google-auth-wrapper {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+        }
+
+        .divider {
+          display: flex;
+          align-items: center;
+          text-align: center;
+          color: var(--text-secondary);
+          font-size: 0.8rem;
+          font-weight: 600;
+          letter-spacing: 1px;
+        }
+
+        .divider::before, .divider::after {
+          content: '';
+          flex: 1;
+          border-bottom: 1px solid var(--glass-border);
+        }
+
+        .divider span {
+          padding: 0 10px;
         }
 
         .auth-form {

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Video, Mail, Lock, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { userApi } from '../services/api';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -17,7 +18,7 @@ export default function Login() {
   const [resendMsg, setResendMsg] = useState('');
   
   const navigate = useNavigate();
-  const { login, verifyEmail } = useAuth();
+  const { login, googleLogin, verifyEmail } = useAuth();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -32,11 +33,25 @@ export default function Login() {
     } catch (err) {
       if (err.status === 403 || err.message === "Please verify your email first") {
         setStep(2);
-        handleResendOtp(); // Automatically send the OTP so the user doesn't have to manually click the button
+        handleResendOtp(); 
       } else {
         setError(err.message || err);
       }
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    try {
+      await googleLogin(credentialResponse.credential);
+      navigate('/');
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError('Google Sign-In failed. Please try again.');
   };
 
   const handleOtpSubmit = async (e) => {
@@ -80,7 +95,20 @@ export default function Login() {
         {error && <div className="error-message">{error}</div>}
 
         {step === 1 ? (
-          <form onSubmit={handleLoginSubmit} className="auth-form">
+          <>
+            <div className="google-auth-wrapper">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap
+              />
+            </div>
+            
+            <div className="divider">
+              <span>OR CONTINUE WITH EMAIL</span>
+            </div>
+
+            <form onSubmit={handleLoginSubmit} className="auth-form">
           <div className="input-group">
             <label>Email or Username</label>
             <div className="input-wrapper">
@@ -119,6 +147,7 @@ export default function Login() {
             <button type="submit" className="primary-btn">Sign In</button>
           </div>
         </form>
+        </>
         ) : (
           <form onSubmit={handleOtpSubmit} className="auth-form">
             <div className="input-group">
@@ -195,6 +224,32 @@ export default function Login() {
 
         .auth-header p {
           color: var(--text-secondary);
+        }
+
+        .google-auth-wrapper {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+        }
+
+        .divider {
+          display: flex;
+          align-items: center;
+          text-align: center;
+          color: var(--text-secondary);
+          font-size: 0.8rem;
+          font-weight: 600;
+          letter-spacing: 1px;
+        }
+
+        .divider::before, .divider::after {
+          content: '';
+          flex: 1;
+          border-bottom: 1px solid var(--glass-border);
+        }
+
+        .divider span {
+          padding: 0 10px;
         }
 
         .auth-form {

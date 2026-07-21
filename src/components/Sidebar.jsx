@@ -58,7 +58,14 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
           title={currentUser.fullName}
           onClick={() => { if (window.innerWidth <= 768) onToggleCollapse(); }}
         >
-          <img src={avatarSrc} alt={currentUser.fullName} className="sidebar-profile-avatar" />
+          <img 
+            src={avatarSrc} 
+            alt={currentUser.fullName} 
+            className="sidebar-profile-avatar" 
+            onError={e => {
+              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.fullName || 'U')}&background=2563eb&color=fff`;
+            }}
+          />
           <div className="sidebar-profile-info">
             <div className="sidebar-profile-name">{currentUser.fullName}</div>
             <div className="sidebar-profile-handle">@{currentUser.username}</div>

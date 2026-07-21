@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -83,6 +83,11 @@ function AppLayout() {
     );
   }
 
+  // Redirect authenticated users away from auth pages
+  if (currentUser && isAuthPage) {
+    return <Navigate to="/" replace />;
+  }
+
   const mainClass = [
     'main-content',
     showSidebar ? 'with-sidebar' : '',
@@ -92,11 +97,13 @@ function AppLayout() {
   return (
     <div className="app-container">
       <ScrollToTop />
-      <Navbar 
-        onToggleSidebar={toggleSidebar} 
-        sidebarCollapsed={sidebarCollapsed} 
-        showHamburger={showSidebar} 
-      />
+      {!isAuthPage && (
+        <Navbar 
+          onToggleSidebar={toggleSidebar} 
+          sidebarCollapsed={sidebarCollapsed} 
+          showHamburger={showSidebar} 
+        />
+      )}
       {showSidebar && (
         <Sidebar
           collapsed={sidebarCollapsed}

@@ -38,47 +38,70 @@ export default function VideoPlayer() {
 
   useEffect(() => {
     const fetchAll = async () => {
+      let v = null;
       try {
         setLoading(true);
-        const [vRes] = await Promise.all([
-          videoApi.getVideoById(videoId),
-        ]);
-        const v = vRes.data;
+        const vRes = await videoApi.getVideoById(videoId);
+        v = vRes.data;
         setVideo(v);
-        // The backend already returns the incremented view count in the response
         setViewCount(v?.views || 0);
-        // Use video title as search query for related/suggested videos
-        const titleQuery = v?.title ? v.title.split(' ').slice(0, 3).join(' ') : '';
-        const suggestedRes = await videoApi.getVideos(1, 15, titleQuery);
-        setSuggested(suggestedRes.data?.videos?.filter(x => x._id !== videoId) || []);
+      } catch (err) {
+        console.error("Core video fetch failed:", err);
+        toast.error('Failed to load video. Please try again.', 'Video Error');
+        setLoading(false);
+        return;
+      }
 
+      setLoading(false);
+
+      // Non-blocking auxiliary requests below:
+      if (v) {
+        // 1. Suggested videos
+        try {
+          const titleQuery = v?.title ? v.title.split(' ').slice(0, 3).join(' ') : '';
+          const suggestedRes = await videoApi.getVideos(1, 15, titleQuery);
+          setSuggested(suggestedRes.data?.videos?.filter(x => x._id !== videoId) || []);
+        } catch (err) {
+          console.warn("Failed to fetch suggested videos:", err);
+        }
+
+        // 2. Watch history
         if (currentUser) {
           userApi.addVideoToHistory(videoId).catch(() => {});
         }
 
-        const lRes = await interactionApi.getVideoLikes(videoId);
-        setLikes(lRes.data?.totalLikes || 0);
-        setIsLiked(lRes.data?.isLiked || false);
+        // 3. Likes info
+        try {
+          const lRes = await interactionApi.getVideoLikes(videoId);
+          setLikes(lRes.data?.totalLikes || 0);
+          setIsLiked(lRes.data?.isLiked || false);
+        } catch (err) {
+          console.warn("Failed to fetch video likes:", err);
+        }
 
-        // Fetch dislike status + count (optional auth — won't throw)
+        // 4. Dislikes info
         try {
           const dRes = await interactionApi.getVideoDislikeStatus(videoId);
           setIsDisliked(dRes.data?.isDisliked || false);
           setDislikes(dRes.data?.totalDislikes || 0);
-        } catch { /* ignore */ }
+        } catch (err) {
+          console.warn("Failed to fetch video dislikes:", err);
+        }
 
+        // 5. Channel Profile / Subscriber info
         const channelUsername = v?.owner?.username || v?.ownerDetails?.username;
         if (channelUsername) {
-          const pRes = await userApi.getChannelProfile(channelUsername);
-          setIsSubscribed(pRes.data?.isSubscribed || false);
-          setSubscribersCount(pRes.data?.subscribersCount || 0);
+          try {
+            const pRes = await userApi.getChannelProfile(channelUsername);
+            setIsSubscribed(pRes.data?.isSubscribed || false);
+            setSubscribersCount(pRes.data?.subscribersCount || 0);
+          } catch (err) {
+            console.warn("Failed to fetch channel profile:", err);
+          }
         }
-      } catch {
-        toast.error('Failed to load video. Please try again.', 'Video Error');
-      } finally {
-        setLoading(false);
       }
     };
+
     fetchAll();
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [videoId]);

@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Exclude VTube Master Guide & Internal Documentation from Git
+VTUBE_MASTER_GUIDE.md
+VTube_Master_Guide.md
+vtube_master_guide.md
+*Master_Guide*
+*master_guide*
